@@ -1,4 +1,4 @@
-basketball-reference-scraper
 pandas
 requests
 ipykernel
+bs4
