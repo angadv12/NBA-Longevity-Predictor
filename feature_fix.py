@@ -36,5 +36,8 @@ df.rename(columns={'Unnamed: 1_level_0': 'Pk',
                    }, 
                    inplace=True)
 
+# only grab first round picks
+df = df[df['Pk'] <= 30]
+df = df[df['Draft_Year'] >= 1980]
 
 df.to_csv("nba_draft_classes_1977_2018.csv", index=False)
