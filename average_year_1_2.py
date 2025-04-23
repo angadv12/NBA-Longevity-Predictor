@@ -7,6 +7,7 @@ def normalize_player_names(df):
 def main():
     # 1) Load the combined first-two-years CSV
     df = pd.read_csv('data/first_two_years_1980_2016.csv')
+    clean_df = pd.read_csv('data/CLEAN_nba_draft_classes_1980_2016.csv')
 
     # 2) Sum up any mid-season splits so each player has one row per Season & Year_Number
     #    We group on the identifying columns and sum all other numeric columns.
@@ -40,9 +41,17 @@ def main():
     avg_df = avg_df.sort_values(by='Draft_Year')
     print(avg_df.head(30))
 
+    clean_df['Draft_Year'] = pd.to_numeric(clean_df['Draft_Year'], errors='coerce')
+    # extract the unique Yrs per Player & Draft_Year
+    yrs_info = clean_df[['Player', 'Draft_Year', 'Yrs']].drop_duplicates()
+    avg_df = avg_df.merge(yrs_info, on=['Player', 'Draft_Year'], how='left')
+    
+    # flag long careers (>=5 years)
+    avg_df['long_career'] = (pd.to_numeric(avg_df['Yrs'], errors='coerce') >= 5).astype(int)
+
     # 5) Save to a new CSV
     avg_df.to_csv('data/AVERAGED_year_1_2.csv', index=False)
-    print(f"Saved {len(avg_df)} players to data/AVERAGED_year_1_2.csv")
+    print(f"Saved {len(avg_df)} players (with long_career flag) to data/AVERAGED_year_1_2.csv")
 
 if __name__ == '__main__':
     main()
