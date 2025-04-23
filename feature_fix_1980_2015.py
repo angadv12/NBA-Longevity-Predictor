@@ -1,6 +1,6 @@
 import pandas as pd
 
-df = pd.read_csv('nba_draft_classes_2019_2023.csv')
+df = pd.read_csv('nba_draft_classes_1980_2015.csv')
 df = df.drop('Unnamed: 0_level_0', axis=1)
 
 # remove any row that matches column name patterns
@@ -50,4 +50,4 @@ missing_stats_mask = df_clean[missing_stats].isna().any(axis=1)
 players_with_missing_stats = df_clean[missing_stats_mask]
 print(f"Found {len(players_with_missing_stats)} players with missing statistics")
 
-df_clean.to_csv('CLEAN_nba_draft_classes_2019_2023.csv', index=False)
+df_clean.to_csv('CLEAN_nba_draft_classes_1980_2015.csv', index=False)

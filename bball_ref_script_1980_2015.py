@@ -2,7 +2,6 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 import time
-import re
 from io import StringIO
 
 def get_draft_class_robust(year):
@@ -136,7 +135,7 @@ def get_draft_class_robust(year):
 if __name__ == "__main__":
     # Collect draft classes
     draft_classes = pd.DataFrame()
-    for year in range(1977, 2019):  # 1977-2018
+    for year in range(1980, 2016):  # 1980-2015
         draft_class = get_draft_class_robust(year)
         if not draft_class.empty:
             print(f"Successfully collected data for {year}: {len(draft_class)} players")
@@ -148,7 +147,7 @@ if __name__ == "__main__":
 
     # Save the raw data
     if not draft_classes.empty:
-        draft_classes.to_csv("nba_draft_classes_1977_2018.csv", index=False)
+        draft_classes.to_csv("nba_draft_classes_1980_2015.csv", index=False)
         print(f"Total players collected: {len(draft_classes)}")
         print(draft_classes.head())
     else:
