@@ -1,5 +1,4 @@
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
 
 df = pd.read_csv('CLEAN_nba_draft_classes_1977_2018.csv')
 
@@ -42,15 +41,17 @@ def engineer_features(df):
     # 7. Draft Pedigree - bin draft positions
     if 'Pk' in df.columns:
         features_df['Lottery_Pick'] = (df['Pk'] <= 14).astype(int)
-        features_df['First_Round_Pick'] = (df['Pk'] <= 30).astype(int)
     
     return features_df
 
-engineered_features = engineer_features(df)
-model_df = pd.concat([df, engineered_features], axis=1)
+if __name__ == "__main__":
+    # Load the cleaned data
+    df = pd.read_csv('CLEAN_nba_draft_classes_1977_2018.csv')
+    engineered_features = engineer_features(df)
+    model_df = pd.concat([df, engineered_features], axis=1)
 
-if 'Yrs' in model_df.columns:
-    model_df['Long_Career'] = (model_df['Yrs'] >= 5).astype(int)
-    print(f"Class distribution - Long careers: {model_df['Long_Career'].sum()}, Short careers: {len(model_df) - model_df['Long_Career'].sum()}")
+    if 'Yrs' in model_df.columns:
+        model_df['Long_Career'] = (model_df['Yrs'] >= 5).astype(int)
+        print(f"Class distribution - Long careers: {model_df['Long_Career'].sum()}, Short careers: {len(model_df) - model_df['Long_Career'].sum()}")
 
-model_df.to_csv('nba_engineered_data.csv', index=False)
+    model_df.to_csv('nba_engineered_data_2018.csv', index=False)

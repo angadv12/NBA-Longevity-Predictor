@@ -133,23 +133,23 @@ def get_draft_class_robust(year):
         print(f"Failed to collect draft data for year {year}: {e}")
         return pd.DataFrame()
 
-# Collect draft classes
-draft_classes = pd.DataFrame()
-for year in range(1977, 2019):  # As per your paper: 1977-2018
-    draft_class = get_draft_class_robust(year)
-    if not draft_class.empty:
-        print(f"Successfully collected data for {year}: {len(draft_class)} players")
-        draft_classes = pd.concat([draft_classes, draft_class], ignore_index=True)
-    else:
-        print(f"No data collected for year {year}")
-    
-    # Respect the website by not sending too many requests too quickly
-    time.sleep(2)
+if __name__ == "__main__":
+    # Collect draft classes
+    draft_classes = pd.DataFrame()
+    for year in range(1977, 2019):  # 1977-2018
+        draft_class = get_draft_class_robust(year)
+        if not draft_class.empty:
+            print(f"Successfully collected data for {year}: {len(draft_class)} players")
+            draft_classes = pd.concat([draft_classes, draft_class], ignore_index=True)
+        else:
+            print(f"No data collected for year {year}")
+        
+        time.sleep(2)
 
-# Save the raw data
-if not draft_classes.empty:
-    draft_classes.to_csv("nba_draft_classes_1977_2018.csv", index=False)
-    print(f"Total players collected: {len(draft_classes)}")
-    print(draft_classes.head())
-else:
-    print("No draft data was collected.")
+    # Save the raw data
+    if not draft_classes.empty:
+        draft_classes.to_csv("nba_draft_classes_1977_2018.csv", index=False)
+        print(f"Total players collected: {len(draft_classes)}")
+        print(draft_classes.head())
+    else:
+        print("No draft data was collected.")

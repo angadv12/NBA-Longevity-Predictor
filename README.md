@@ -4,3 +4,6 @@ Predicting NBA Player Career Longevity Using Regularized Classification Models a
 ## Authors
 - Angad Brar, zqq4hx@virginia.edu
 - Abhinav Pasula, rvv7fp@virginia.edu
+
+## Acknowledgements
+- basketball-reference.com

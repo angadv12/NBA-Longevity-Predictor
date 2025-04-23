@@ -17,7 +17,6 @@ df = df[mask]
 # rename column headers
 df.rename(columns={'Unnamed: 1_level_0': 'Pk',
                    'Player': 'Tm',
-                   'Player': 'Player',
                    'Round 1': 'Player',
                    'Round 1.1': 'College',
                    'Unnamed: 5_level_0': 'Yrs',
