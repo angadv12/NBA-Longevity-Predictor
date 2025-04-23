@@ -1,0 +1,41 @@
+NBA PLAYER CAREER LONGEVITY PREDICTION - SUMMARY REPORT
+============================================================
+
+EXECUTION DATE: 2025-04-22 21:38:11
+
+OPTIMIZED ENSEMBLE MODEL PERFORMANCE
+----------------------------------------
+Accuracy: 0.9920
+F1 Score: 0.9952
+AUC-ROC: 0.9995
+Precision at 75% Recall: 1.0000
+
+TOP 10 MOST IMPORTANT FEATURES
+----------------------------------------
+1. G: 0.2084
+2. MP: 0.1468
+3. TRB_Total: 0.1384
+4. WS: 0.1175
+5. PTS_Total: 0.0840
+6. WS_Per_Game: 0.0405
+7. AST_Total: 0.0384
+8. Durability_Factor: 0.0362
+9. WS/48: 0.0352
+10. MPG: 0.0298
+
+MODEL COMPARISON
+----------------------------------------
+                     Accuracy  F1 Score       AUC
+Logistic Regression     0.960  0.975845  0.981905
+Random Forest           0.976  0.985646  0.984762
+Gradient Boosting       0.992  0.995215  0.995952
+Optimized Ensemble      0.992  0.995215  0.999524
+
+BOOTSTRAP RESULTS (95% CONFIDENCE INTERVALS)
+----------------------------------------
+Accuracy: 0.9909 (95% CI: 0.9680-1.0000)
+F1 Score: 0.9945 (95% CI: 0.9810-1.0000)
+Auc: 0.9995 (95% CI: 0.9968-1.0000)
+
+
+All detailed results available in the 'results' directory.

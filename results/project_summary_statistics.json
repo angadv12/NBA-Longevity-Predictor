@@ -1,0 +1,116 @@
+{
+    "execution_date": "2025-04-22 21:38:11",
+    "ensemble_metrics": {
+        "accuracy": 0.992,
+        "f1": 0.9952153110047847,
+        "auc": 0.9995238095238095,
+        "precision_at_75_recall": 1.0,
+        "confusion_matrix": [
+            [
+                20,
+                0
+            ],
+            [
+                1,
+                104
+            ]
+        ]
+    },
+    "top_features": [
+        {
+            "Feature": "G",
+            "Importance": 0.2084101965820034
+        },
+        {
+            "Feature": "MP",
+            "Importance": 0.14677624238568346
+        },
+        {
+            "Feature": "TRB_Total",
+            "Importance": 0.1383845827705933
+        },
+        {
+            "Feature": "WS",
+            "Importance": 0.11753690079684241
+        },
+        {
+            "Feature": "PTS_Total",
+            "Importance": 0.08399941684731184
+        },
+        {
+            "Feature": "WS_Per_Game",
+            "Importance": 0.04051082798066564
+        },
+        {
+            "Feature": "AST_Total",
+            "Importance": 0.03838727241514843
+        },
+        {
+            "Feature": "Durability_Factor",
+            "Importance": 0.036231111185647306
+        },
+        {
+            "Feature": "WS/48",
+            "Importance": 0.03515685897068644
+        },
+        {
+            "Feature": "MPG",
+            "Importance": 0.029815887105191688
+        }
+    ],
+    "model_comparison": {
+        "Accuracy": {
+            "Logistic Regression": 0.96,
+            "Random Forest": 0.976,
+            "Gradient Boosting": 0.992,
+            "Optimized Ensemble": 0.992
+        },
+        "F1 Score": {
+            "Logistic Regression": 0.9758454106280193,
+            "Random Forest": 0.9856459330143541,
+            "Gradient Boosting": 0.9952153110047847,
+            "Optimized Ensemble": 0.9952153110047847
+        },
+        "AUC": {
+            "Logistic Regression": 0.981904761904762,
+            "Random Forest": 0.9847619047619048,
+            "Gradient Boosting": 0.9959523809523809,
+            "Optimized Ensemble": 0.9995238095238095
+        }
+    },
+    "bootstrap_results": {
+        "accuracy": {
+            "mean": 0.9909200000000001,
+            "lower_ci": 0.968,
+            "upper_ci": 1.0
+        },
+        "f1_score": {
+            "mean": 0.994530261554252,
+            "lower_ci": 0.9809523809523809,
+            "upper_ci": 1.0
+        },
+        "auc": {
+            "mean": 0.9995230301948262,
+            "lower_ci": 0.9967983006535946,
+            "upper_ci": 1.0
+        }
+    },
+    "best_hyperparameters": {
+        "random_forest": {
+            "max_depth": 16,
+            "min_samples_leaf": 1,
+            "min_samples_split": 5,
+            "n_estimators": 661
+        },
+        "gradient_boosting": {
+            "learning_rate": 0.13958350559263474,
+            "max_depth": 2,
+            "min_samples_split": 11,
+            "n_estimators": 237,
+            "subsample": 0.7465447373174767
+        },
+        "logistic_regression": {
+            "C": 4.754571532049581
+        }
+    }
+}
