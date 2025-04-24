@@ -1,9 +1,3 @@
-"""
-NBA Player Career Longevity Prediction Project - Complete Solution
-This script implements a machine learning framework to predict NBA career longevity
-using early-career indicators and statistics.
-"""
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -14,551 +8,301 @@ from sklearn.metrics import precision_recall_curve, roc_curve
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import StackingClassifier
+import joblib
+import shap
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import RandomizedSearchCV
 from scipy.stats import randint, uniform
-import joblib
-import shap
-import os
-import json
-import datetime
 
-# Create a results directory if it doesn't exist
-if not os.path.exists('results'):
-    os.makedirs('results')
-if not os.path.exists('models'):
-    os.makedirs('models')
-if not os.path.exists('visualizations'):
-    os.makedirs('visualizations')
+# Load your preprocessed dataset
+# Assumes you've already completed data preprocessing
+df = pd.read_csv('data/AVERAGED_year_1_2.csv')
 
-# Data Loading
-def load_data():
-    """
-    Load the pre-separated datasets.
-    Returns X_train, y_train, X_test, y_test, and other necessary data.
-    """
-    print("Loading datasets...")
-    
-    # Load train data (1977-2018)
-    df_train = pd.read_csv('nba_engineered_data_1980_2015.csv')
-    df_test = pd.read_csv('nba_engineered_data_2016_2020.csv')
-    
-    X_train = df_train.drop(['Pk', 'Tm', 'Player', 'College', 'Yrs', 'Long_Career'], axis=1, errors='ignore')
-    X_test = df_test.drop(['Pk', 'Tm', 'Player', 'College', 'Yrs', 'Long_Career'], axis=1, errors='ignore')
+# Data Splitting
+X = df.drop(['Player', 'long_career', 'Yrs'], axis=1, errors='ignore')
+y = df['long_career']
 
-    y_train = df_train['Long_Career']
-    y_test = df_test['Long_Career']
-    
-    # Get the original dataframes for later use
-    train_data = df_train
-    test_data = df_test
-    
-    # Scale features
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    
-    print(f"Train data shape: {X_train.shape}, Test data shape: {X_test.shape}")
-    return X_train, y_train, X_test, y_test, X_train_scaled, X_test_scaled, train_data, test_data, scaler
+train_mask = (df['Draft_Year'] >= 1980) & (df['Draft_Year'] <= 2012)
+test_mask = (df['Draft_Year'] >= 2013)
+
+X_train, y_train = X[train_mask], y[train_mask]
+X_test, y_test = X[test_mask], y[test_mask]
+
+X_train = X_train.drop(['Draft_Year'], axis=1, errors='ignore')
+X_test = X_test.drop(['Draft_Year'], axis=1, errors='ignore')
+
+# Scale features
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
 
 # Baseline Models
-def create_baseline_models(X_train_scaled, y_train, X_test_scaled, y_test, test_data):
-    """
-    Create and evaluate baseline models for comparison.
-    """
-    print("\nCreating baseline models...")
-    baseline_results = {}
-    
-    # Simple logistic regression baseline
+def create_logistic_baseline():
     log_reg = LogisticRegression(penalty='l1', solver='liblinear', C=0.01, random_state=42)
     log_reg.fit(X_train_scaled, y_train)
-    
-    # Evaluate on test set
-    log_y_pred = log_reg.predict(X_test_scaled)
-    log_y_prob = log_reg.predict_proba(X_test_scaled)[:, 1]
-    
-    log_accuracy = accuracy_score(y_test, log_y_pred)
-    log_f1 = f1_score(y_test, log_y_pred)
-    log_auc = roc_auc_score(y_test, log_y_prob)
-    
+    y_pred = log_reg.predict(X_test_scaled)
+    y_prob = log_reg.predict_proba(X_test_scaled)[:, 1]
+    accuracy = accuracy_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred)
+    auc = roc_auc_score(y_test, y_prob)
     print("Logistic Regression Baseline Performance:")
-    print(f"Accuracy: {log_accuracy:.4f}")
-    print(f"F1 Score: {log_f1:.4f}")
-    print(f"AUC-ROC: {log_auc:.4f}")
-    
-    baseline_results['logistic_regression'] = {
-        'accuracy': log_accuracy,
-        'f1': log_f1,
-        'auc': log_auc
-    }
-    
-    # Create draft position based baseline
-    if 'draft_position' in test_data.columns:
-        threshold = 15  # First-round picks often have better careers
-        
-        # Create predictions based on draft position
-        draft_preds = (test_data['draft_position'] <= threshold).astype(int)
-        
-        draft_accuracy = accuracy_score(y_test, draft_preds)
-        draft_f1 = f1_score(y_test, draft_preds)
-        
-        print("\nDraft Position Baseline Performance:")
-        print(f"Accuracy: {draft_accuracy:.4f}")
-        print(f"F1 Score: {draft_f1:.4f}")
-        
-        baseline_results['draft_position'] = {
-            'accuracy': draft_accuracy,
-            'f1': draft_f1
-        }
-    
-    # Export baseline results
-    with open('results/baseline_model_results.json', 'w') as f:
-        json.dump(baseline_results, f, indent=4)
-    
-    return log_reg, baseline_results
+    print(f"Accuracy: {accuracy:.4f}")
+    print(f"F1 Score: {f1:.4f}")
+    print(f"AUC-ROC: {auc:.4f}")
+    return log_reg, accuracy, f1, auc
+
+def create_draft_position_baseline():
+    threshold = 15
+    draft_preds = (df.loc[test_mask, 'draft_position'] <= threshold).astype(int)
+    accuracy = accuracy_score(y_test, draft_preds)
+    f1 = f1_score(y_test, draft_preds)
+    print("Draft Position Baseline Performance:")
+    print(f"Accuracy: {accuracy:.4f}")
+    print(f"F1 Score: {f1:.4f}")
+    return accuracy, f1
+
+logistic_baseline, log_acc, log_f1, log_auc = create_logistic_baseline()
+draft_acc, draft_f1 = create_draft_position_baseline()
 
 # Stacked Ensemble Model
-def create_ensemble_model(X_train_scaled, y_train):
-    """
-    Create the stacked ensemble model as described in the paper.
-    """
-    print("\nCreating stacked ensemble model...")
-    # Base models
-    random_forest = RandomForestClassifier(
-        n_estimators=500, 
-        max_depth=15,
-        random_state=42
-    )
-    
-    logistic_regression = LogisticRegression(
-        penalty='l1', 
-        C=0.01,
-        solver='liblinear',
-        random_state=42
-    )
-    
-    gradient_boosting = GradientBoostingClassifier(
-        learning_rate=0.1,
-        max_depth=3,
-        n_estimators=100,
-        random_state=42
-    )
-    
-    # Create the ensemble
-    estimators = [
-        ('rf', random_forest),
-        ('lr', logistic_regression),
-        ('gb', gradient_boosting)
-    ]
-    
-    stacked_model = StackingClassifier(
-        estimators=estimators,
-        final_estimator=LogisticRegression(random_state=42),
-        cv=5
-    )
-    
-    # Fit the model
-    print("Training ensemble model...")
-    stacked_model.fit(X_train_scaled, y_train)
-    print("Ensemble model training complete!")
-    
+def create_ensemble_model():
+    random_forest = RandomForestClassifier(n_estimators=500, max_depth=15, random_state=42)
+    logistic_regression = LogisticRegression(penalty='l1', C=0.01, solver='liblinear', random_state=42)
+    gradient_boosting = GradientBoostingClassifier(learning_rate=0.1, max_depth=3, n_estimators=100, random_state=42)
+    estimators = [('rf', random_forest), ('lr', logistic_regression), ('gb', gradient_boosting)]
+    stacked_model = StackingClassifier(estimators=estimators, final_estimator=LogisticRegression(random_state=42), cv=5)
     return stacked_model
 
+ensemble_model = create_ensemble_model()
+ensemble_model.fit(X_train_scaled, y_train)
+
 # Hyperparameter Optimization
-def optimize_hyperparameters(X_train_scaled, y_train):
-    """
-    Perform hyperparameter optimization for each model component.
-    """
-    print("\nOptimizing hyperparameters...")
-    # Random Forest hyperparameter space
-    rf_param_dist = {
-        'n_estimators': randint(100, 1000),
-        'max_depth': randint(3, 20),
-        'min_samples_split': randint(2, 20),
-        'min_samples_leaf': randint(1, 10)
-    }
-    
-    # Gradient Boosting hyperparameter space
-    gb_param_dist = {
-        'learning_rate': uniform(0.01, 0.3),
-        'n_estimators': randint(50, 500),
-        'max_depth': randint(2, 10),
-        'min_samples_split': randint(2, 20),
-        'subsample': uniform(0.6, 0.4)
-    }
-    
-    # Logistic Regression hyperparameter space
-    lr_param_dist = {
-        'C': uniform(0.001, 5.0)
-    }
-    
-    # Create models for optimization
+def optimize_hyperparameters():
+    rf_param_dist = {'n_estimators': randint(100, 1000), 'max_depth': randint(3, 20), 'min_samples_split': randint(2, 20), 'min_samples_leaf': randint(1, 10)}
+    gb_param_dist = {'learning_rate': uniform(0.01, 0.3), 'n_estimators': randint(50, 500), 'max_depth': randint(2, 10), 'min_samples_split': randint(2, 20), 'subsample': uniform(0.6, 0.4)}
+    lr_param_dist = {'C': uniform(0.001, 5.0)}
     rf = RandomForestClassifier(random_state=42)
     gb = GradientBoostingClassifier(random_state=42)
     lr = LogisticRegression(penalty='l1', solver='liblinear', random_state=42)
-    
-    # Use RandomizedSearchCV as a proxy for Bayesian optimization
-    # Reducing iterations for faster execution
-    rf_search = RandomizedSearchCV(
-        rf, rf_param_dist, n_iter=20, cv=5, 
-        scoring='f1', random_state=42, n_jobs=-1
-    )
-    
-    gb_search = RandomizedSearchCV(
-        gb, gb_param_dist, n_iter=20, cv=5, 
-        scoring='f1', random_state=42, n_jobs=-1
-    )
-    
-    lr_search = RandomizedSearchCV(
-        lr, lr_param_dist, n_iter=10, cv=5, 
-        scoring='f1', random_state=42, n_jobs=-1
-    )
-    
-    # Fit search algorithms
+    rf_search = RandomizedSearchCV(rf, rf_param_dist, n_iter=50, cv=5, scoring='f1', random_state=42, n_jobs=-1)
+    gb_search = RandomizedSearchCV(gb, gb_param_dist, n_iter=50, cv=5, scoring='f1', random_state=42, n_jobs=-1)
+    lr_search = RandomizedSearchCV(lr, lr_param_dist, n_iter=20, cv=5, scoring='f1', random_state=42, n_jobs=-1)
     print("Optimizing Random Forest...")
     rf_search.fit(X_train_scaled, y_train)
-    
     print("Optimizing Gradient Boosting...")
     gb_search.fit(X_train_scaled, y_train)
-    
     print("Optimizing Logistic Regression...")
     lr_search.fit(X_train_scaled, y_train)
-    
-    # Print best parameters
     print(f"Best RF parameters: {rf_search.best_params_}")
     print(f"Best GB parameters: {gb_search.best_params_}")
     print(f"Best LR parameters: {lr_search.best_params_}")
-    
-    # Save best parameters
-    best_params = {
-        'random_forest': rf_search.best_params_,
-        'gradient_boosting': gb_search.best_params_,
-        'logistic_regression': lr_search.best_params_
-    }
-    
-    with open('results/best_hyperparameters.json', 'w') as f:
-        json.dump(best_params, f, indent=4)
-    
-    return rf_search, gb_search, lr_search, best_params
+    return rf_search, gb_search, lr_search
 
-# Create optimized ensemble model
-def create_optimized_ensemble(rf_search, gb_search, lr_search, X_train_scaled, y_train):
-    """
-    Create an optimized ensemble model with the best hyperparameters.
-    """
-    print("\nCreating optimized ensemble model...")
-    optimized_ensemble = StackingClassifier(
-        estimators=[
-            ('rf', rf_search.best_estimator_),
-            ('lr', lr_search.best_estimator_),
-            ('gb', gb_search.best_estimator_)
-        ],
-        final_estimator=LogisticRegression(random_state=42),
-        cv=5
-    )
-    
-    # Train optimized ensemble
-    print("Training optimized ensemble model...")
-    optimized_ensemble.fit(X_train_scaled, y_train)
-    print("Optimized ensemble model training complete!")
-    
-    # Save the model
-    joblib.dump(optimized_ensemble, 'models/nba_career_longevity_model.pkl')
-    
-    return optimized_ensemble
+rf_search, gb_search, lr_search = optimize_hyperparameters()
+
+optimized_ensemble = StackingClassifier(estimators=[('rf', rf_search.best_estimator_), ('lr', lr_search.best_estimator_), ('gb', gb_search.best_estimator_)], final_estimator=LogisticRegression(random_state=42), cv=5)
+optimized_ensemble.fit(X_train_scaled, y_train)
 
 # Model Evaluation
-def evaluate_model(model, X, y, model_name="Model", plot_figures=True, save_figures=True):
-    """
-    Evaluate model performance and generate metrics.
-    """
-    print(f"\nEvaluating {model_name}...")
+def evaluate_model(model, X, y, model_name="Model"):
     y_pred = model.predict(X)
     y_prob = model.predict_proba(X)[:, 1]
-    
-    # Calculate metrics
     accuracy = accuracy_score(y, y_pred)
     f1 = f1_score(y, y_pred)
     auc = roc_auc_score(y, y_prob)
-    
-    # Calculate precision at 75% recall
     precision, recall, thresholds = precision_recall_curve(y, y_prob)
     target_recall = 0.75
     recall_diff = np.abs(recall - target_recall)
     closest_idx = np.argmin(recall_diff)
     precision_at_75_recall = precision[closest_idx]
-    
     print(f"{model_name} Performance:")
     print(f"Accuracy: {accuracy:.4f}")
     print(f"F1 Score: {f1:.4f}")
     print(f"AUC-ROC: {auc:.4f}")
     print(f"Precision at 75% Recall: {precision_at_75_recall:.4f}")
-    
-    # Plot confusion matrix
-    if plot_figures:
-        cm = confusion_matrix(y, y_pred)
-        plt.figure(figsize=(8, 6))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-        plt.title(f'{model_name} Confusion Matrix')
-        plt.xlabel('Predicted Label')
-        plt.ylabel('True Label')
-        plt.xticks([0.5, 1.5], ['<5 Seasons', '≥5 Seasons'])
-        plt.yticks([0.5, 1.5], ['<5 Seasons', '≥5 Seasons'])
-        if save_figures:
-            plt.savefig(f'visualizations/{model_name.replace(" ", "_")}_confusion_matrix.png', dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        # Plot ROC curve
-        fpr, tpr, _ = roc_curve(y, y_prob)
-        plt.figure(figsize=(8, 6))
-        plt.plot(fpr, tpr, label=f'ROC Curve (AUC = {auc:.3f})')
-        plt.plot([0, 1], [0, 1], 'k--', label='Random')
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title(f'{model_name} ROC Curve')
-        plt.legend()
-        plt.grid(alpha=0.3)
-        if save_figures:
-            plt.savefig(f'visualizations/{model_name.replace(" ", "_")}_roc_curve.png', dpi=300, bbox_inches='tight')
-        plt.close()
-    
-    # Save metrics to file
-    metrics = {
-        'accuracy': accuracy,
-        'f1': f1,
-        'auc': auc,
-        'precision_at_75_recall': precision_at_75_recall,
-        'confusion_matrix': cm.tolist() if 'cm' in locals() else None
-    }
-    
-    return metrics
+    cm = confusion_matrix(y, y_pred)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+    plt.title(f'{model_name} Confusion Matrix')
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+    plt.xticks([0.5, 1.5], ['<5 Seasons', '≥5 Seasons'])
+    plt.yticks([0.5, 1.5], ['<5 Seasons', '≥5 Seasons'])
+    plt.savefig(f'{model_name}_confusion_matrix.png')
+    plt.show()
+    fpr, tpr, _ = roc_curve(y, y_prob)
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr, tpr, label=f'ROC Curve (AUC = {auc:.3f})')
+    plt.plot([0, 1], [0, 1], 'k--', label='Random')
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title(f'{model_name} ROC Curve')
+    plt.legend()
+    plt.grid(alpha=0.3)
+    plt.savefig(f'{model_name}_roc_curve.png')
+    plt.show()
+    return {'accuracy': accuracy, 'f1': f1, 'auc': auc, 'precision_at_75_recall': precision_at_75_recall}
+
+ensemble_metrics = evaluate_model(optimized_ensemble, X_test_scaled, y_test, "Optimized_Ensemble")
 
 # Feature Importance Analysis
-def analyze_feature_importance(ensemble_model, X_train, X_train_scaled, save_figures=True):
-    """
-    Extract and analyze feature importance from the models.
-    """
-    print("\nAnalyzing feature importance...")
-    # Get the Random Forest component from the ensemble
-    rf_model = ensemble_model.named_estimators_['rf']
-    
-    # Get feature importances
+def analyze_feature_importance():
+    rf_model = optimized_ensemble.named_estimators_['rf']
     importances = rf_model.feature_importances_
-    
-    # Create DataFrame
-    importance_df = pd.DataFrame({
-        'Feature': X_train.columns,
-        'Importance': importances
-    })
-    
-    # Sort by importance
+    importance_df = pd.DataFrame({'Feature': X_train.columns, 'Importance': importances})
     importance_df = importance_df.sort_values('Importance', ascending=False).reset_index(drop=True)
-    
-    # Save feature importance to CSV
-    importance_df.to_csv('results/feature_importance.csv', index=False)
-    
-    # Plot top 15 features
     plt.figure(figsize=(12, 8))
     sns.barplot(x='Importance', y='Feature', data=importance_df.head(15))
     plt.title('Top 15 Most Important Features for NBA Career Longevity')
     plt.tight_layout()
-    if save_figures:
-        plt.savefig('visualizations/feature_importance_top15.png', dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    # Print top 10 most important features
-    print("Top 10 Most Important Features:")
-    print(importance_df.head(10))
-    
-    # Use SHAP for additional insights
-    try:
-        # Create SHAP explainer
-        explainer = shap.TreeExplainer(rf_model)
-        
-        # If dataset is large, use a sample
-        if X_train_scaled.shape[0] > 500:
-            sample_indices = np.random.choice(X_train_scaled.shape[0], 500, replace=False)
-            X_sample = X_train_scaled[sample_indices]
-            # Create a DataFrame with feature names for SHAP plots
-            X_sample_df = pd.DataFrame(X_sample, columns=X_train.columns)
-        else:
-            X_sample = X_train_scaled
-            X_sample_df = pd.DataFrame(X_sample, columns=X_train.columns)
-        
-        # Calculate SHAP values
-        shap_values = explainer.shap_values(X_sample)
-        
-        # Plot summary
-        plt.figure(figsize=(12, 8))
-        shap.summary_plot(shap_values, X_sample_df, plot_type="bar", show=False)
-        plt.title('SHAP Feature Importance')
-        plt.tight_layout()
-        if save_figures:
-            plt.savefig('visualizations/shap_feature_importance.png', dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        # Show detailed summary plot
-        plt.figure(figsize=(12, 8))
-        shap.summary_plot(shap_values, X_sample_df, show=False)
-        plt.title('SHAP Summary Plot')
-        plt.tight_layout()
-        if save_figures:
-            plt.savefig('visualizations/shap_summary_plot.png', dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        print("SHAP analysis completed and saved.")
-        return importance_df, rf_model, explainer
-    except Exception as e:
-        print(f"Error in SHAP analysis: {e}")
-        return importance_df, rf_model, None
+    plt.savefig('feature_importance.png')
+    plt.show()
+    # Export feature importance to CSV
+    importance_df.to_csv('feature_importance.csv', index=False)
+    return importance_df, rf_model
 
-# Bootstrap Resampling for Uncertainty Quantification
-def bootstrap_evaluation(model, X, y, n_iterations=200, save_figures=True):
-    """
-    Estimate uncertainty in model performance using bootstrap resampling.
-    """
-    print("\nPerforming bootstrap evaluation...")
+importance_df, rf_model = analyze_feature_importance()
+print("Top 10 Most Important Features:")
+print(importance_df.head(10))
+
+# SHAP analysis
+def shap_analysis(model, X_data):
+    explainer = shap.TreeExplainer(model)
+    if X_data.shape[0] > 500:  # Fixed shape comparison
+        X_sample = pd.DataFrame(X_data, columns=X_train.columns).sample(500, random_state=42)
+    else:
+        X_sample = pd.DataFrame(X_data, columns=X_train.columns)
+    shap_values = explainer.shap_values(X_sample)
+    plt.figure(figsize=(12, 8))
+    shap.summary_plot(shap_values, X_sample, plot_type="bar", show=False)
+    plt.title('SHAP Feature Importance')
+    plt.tight_layout()
+    plt.savefig('shap_feature_importance.png')
+    plt.show()
+    plt.figure(figsize=(12, 8))
+    shap.summary_plot(shap_values, X_sample, show=False)
+    plt.title('SHAP Summary Plot')
+    plt.tight_layout()
+    plt.savefig('shap_summary_plot.png')
+    plt.show()
+    return explainer, shap_values
+
+shap_explainer, shap_values = shap_analysis(rf_model, X_train_scaled)
+
+# Bootstrap Resampling
+def bootstrap_evaluation(model, X, y, n_iterations=200):
     accuracies = []
     f1_scores = []
     aucs = []
-    
     np.random.seed(42)
-    
     for i in range(n_iterations):
-        if i % 20 == 0:
-            print(f"Bootstrap iteration {i}/{n_iterations}")
-        
-        # Sample with replacement
         indices = np.random.choice(len(X), size=len(X), replace=True)
         X_sample = X[indices]
         y_sample = y.iloc[indices] if isinstance(y, pd.Series) else y[indices]
-        
-        # Predict
         y_pred = model.predict(X_sample)
         y_prob = model.predict_proba(X_sample)[:, 1]
-        
-        # Calculate metrics
         accuracies.append(accuracy_score(y_sample, y_pred))
         f1_scores.append(f1_score(y_sample, y_pred))
         aucs.append(roc_auc_score(y_sample, y_prob))
-    
-    # Calculate confidence intervals (95%)
-    bootstrap_results = {}
     for metric_name, values in [("Accuracy", accuracies), ("F1 Score", f1_scores), ("AUC", aucs)]:
         lower = np.percentile(values, 2.5)
         upper = np.percentile(values, 97.5)
         mean = np.mean(values)
         print(f"{metric_name}: {mean:.4f} (95% CI: {lower:.4f}-{upper:.4f})")
-        bootstrap_results[metric_name.lower().replace(" ", "_")] = {
-            "mean": mean, 
-            "lower_ci": lower, 
-            "upper_ci": upper
-        }
+    plt.figure(figsize=(15, 5))
+    plt.subplot(1, 3, 1)
+    plt.hist(accuracies, bins=30, alpha=0.7)
+    plt.axvline(np.mean(accuracies), color='red')
+    plt.title('Accuracy Distribution')
+    plt.subplot(1, 3, 2)
+    plt.hist(f1_scores, bins=30, alpha=0.7)
+    plt.axvline(np.mean(f1_scores), color='red')
+    plt.title('F1 Score Distribution')
+    plt.subplot(1, 3, 3)
+    plt.hist(aucs, bins=30, alpha=0.7)
+    plt.axvline(np.mean(aucs), color='red')
+    plt.title('AUC Distribution')
+    plt.tight_layout()
+    plt.savefig('bootstrap_results.png')
+    plt.show()
     
-    # Save bootstrap results to file
-    with open('results/bootstrap_results.json', 'w') as f:
-        json.dump(bootstrap_results, f, indent=4)
+    # Export bootstrap results
+    bootstrap_df = pd.DataFrame({
+        'Metric': ['Accuracy', 'F1 Score', 'AUC'],
+        'Mean': [np.mean(accuracies), np.mean(f1_scores), np.mean(aucs)],
+        'Lower_CI': [np.percentile(accuracies, 2.5), np.percentile(f1_scores, 2.5), np.percentile(aucs, 2.5)],
+        'Upper_CI': [np.percentile(accuracies, 97.5), np.percentile(f1_scores, 97.5), np.percentile(aucs, 97.5)]
+    })
+    bootstrap_df.to_csv('bootstrap_results.csv', index=False)
     
-    # Visualize distributions
-    if save_figures:
-        plt.figure(figsize=(15, 5))
-        
-        plt.subplot(1, 3, 1)
-        plt.hist(accuracies, bins=30, alpha=0.7)
-        plt.axvline(np.mean(accuracies), color='red')
-        plt.title('Accuracy Distribution')
-        
-        plt.subplot(1, 3, 2)
-        plt.hist(f1_scores, bins=30, alpha=0.7)
-        plt.axvline(np.mean(f1_scores), color='red')
-        plt.title('F1 Score Distribution')
-        
-        plt.subplot(1, 3, 3)
-        plt.hist(aucs, bins=30, alpha=0.7)
-        plt.axvline(np.mean(aucs), color='red')
-        plt.title('AUC Distribution')
-        
-        plt.tight_layout()
-        plt.savefig('visualizations/bootstrap_distributions.png', dpi=300, bbox_inches='tight')
-        plt.close()
-    
-    return bootstrap_results
+    return {'accuracy': (np.mean(accuracies), np.percentile(accuracies, 2.5), np.percentile(accuracies, 97.5)), 
+            'f1': (np.mean(f1_scores), np.percentile(f1_scores, 2.5), np.percentile(f1_scores, 97.5)), 
+            'auc': (np.mean(aucs), np.percentile(aucs, 2.5), np.percentile(aucs, 97.5))}
+
+bootstrap_results = bootstrap_evaluation(optimized_ensemble, X_test_scaled, y_test, n_iterations=200)
 
 # Model Comparison
-def compare_all_models(X_train_scaled, y_train, X_test_scaled, y_test, optimized_ensemble, save_figures=True):
-    """
-    Compare performance of all models.
-    """
-    print("\nComparing all models...")
-    # Initialize models
+def compare_all_models():
     base_rf = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
     base_gb = GradientBoostingClassifier(random_state=42)
     base_lr = LogisticRegression(penalty='l1', solver='liblinear', C=0.1, random_state=42)
-    
-    # Train models
-    models = {
-        'Logistic Regression': base_lr,
-        'Random Forest': base_rf,
-        'Gradient Boosting': base_gb,
-        'Optimized Ensemble': optimized_ensemble
-    }
-    
+    models = {'Logistic Regression': base_lr, 'Random Forest': base_rf, 'Gradient Boosting': base_gb, 'Optimized Ensemble': optimized_ensemble}
     results = {}
-    
-    # Train and evaluate each model (or just evaluate if already trained)
     for name, model in models.items():
-        print(f"Evaluating {name}...")
         if name == 'Optimized Ensemble' and hasattr(model, 'predict'):
-            # Already trained
             pass
         else:
-            print(f"Training {name}...")
             model.fit(X_train_scaled, y_train)
-        
-        # Predict
         y_pred = model.predict(X_test_scaled)
         y_prob = model.predict_proba(X_test_scaled)[:, 1]
-        
-        # Calculate metrics
-        results[name] = {
-            'Accuracy': accuracy_score(y_test, y_pred),
-            'F1 Score': f1_score(y_test, y_pred),
-            'AUC': roc_auc_score(y_test, y_prob)
-        }
-    
-    # Create DataFrame for comparison
+        results[name] = {'Accuracy': accuracy_score(y_test, y_pred), 'F1 Score': f1_score(y_test, y_pred), 'AUC': roc_auc_score(y_test, y_prob)}
     comparison_df = pd.DataFrame(results).T
+    plt.figure(figsize=(12, 6))
+    comparison_df.plot(kind='bar', figsize=(12, 6))
+    plt.title('Model Performance Comparison')
+    plt.ylabel('Score')
+    plt.ylim(0, 1)
+    plt.xticks(rotation=45)
+    plt.grid(axis='y', alpha=0.3)
+    plt.legend(title='Metric')
+    plt.tight_layout()
+    plt.savefig('model_comparison.png')
+    plt.show()
     
-    # Save comparison to CSV
-    comparison_df.to_csv('results/model_comparison.csv')
-    
-    # Plot comparison
-    if save_figures:
-        plt.figure(figsize=(12, 6))
-        comparison_df.plot(kind='bar', figsize=(12, 6))
-        plt.title('Model Performance Comparison')
-        plt.ylabel('Score')
-        plt.ylim(0, 1)
-        plt.xticks(rotation=45)
-        plt.grid(axis='y', alpha=0.3)
-        plt.legend(title='Metric')
-        plt.tight_layout()
-        plt.savefig('visualizations/model_comparison.png', dpi=300, bbox_inches='tight')
-        plt.close()
-    
-    print("\nModel Comparison:")
-    print(comparison_df)
-    
+    # Export model comparison results
+    comparison_df.to_csv('model_comparison.csv')
     return comparison_df
 
-# Technical Documentation
-def generate_documentation(ensemble_metrics, importance_df, best_params, bootstrap_results):
-    """
-    Generate technical documentation for the model.
-    """
-    print("\nGenerating technical documentation...")
-    
-    # Create documentation string
+model_comparison = compare_all_models()
+print("\nModel Comparison:")
+print(model_comparison)
+
+# Save the final model and scaler
+joblib.dump(optimized_ensemble, 'nba_career_longevity_model.pkl')
+joblib.dump(scaler, 'nba_career_longevity_scaler.pkl')
+
+# Export comprehensive statistics to CSV
+statistics = {
+    'Logistic Regression Baseline Accuracy': [log_acc],
+    'Logistic Regression Baseline F1': [log_f1],
+    'Logistic Regression Baseline AUC': [log_auc],
+    'Draft Position Baseline Accuracy': [draft_acc],
+    'Draft Position Baseline F1': [draft_f1],
+    'Optimized Ensemble Accuracy': [ensemble_metrics['accuracy']],
+    'Optimized Ensemble F1': [ensemble_metrics['f1']],
+    'Optimized Ensemble AUC': [ensemble_metrics['auc']],
+    'Optimized Ensemble Precision at 75% Recall': [ensemble_metrics['precision_at_75_recall']]
+}
+
+stats_df = pd.DataFrame(statistics)
+stats_df.to_csv('model_performance_statistics.csv', index=False)
+print("Model performance statistics exported to 'model_performance_statistics.csv'")
+
+# Generate technical documentation
+def generate_documentation():
+    rf_params = optimized_ensemble.named_estimators_['rf'].get_params()
+    gb_params = optimized_ensemble.named_estimators_['gb'].get_params()
+    lr_params = optimized_ensemble.named_estimators_['lr'].get_params()
     documentation = f"""
 # NBA Player Career Longevity Prediction Model
 ## Technical Documentation
@@ -576,24 +320,6 @@ This machine learning model predicts whether an NBA player will have a long care
 The top 5 most important features for predicting career longevity are:
 {importance_df.head(5)[['Feature', 'Importance']].to_string(index=False)}
 
-### Model Configuration
-The optimized ensemble model uses the following configuration:
-
-#### Random Forest:
-{json.dumps(best_params['random_forest'], indent=4)}
-
-#### Gradient Boosting:
-{json.dumps(best_params['gradient_boosting'], indent=4)}
-
-#### Logistic Regression:
-{json.dumps(best_params['logistic_regression'], indent=4)}
-
-### Uncertainty Analysis
-Bootstrap resampling (200 iterations) yielded the following uncertainty estimates:
-- **Accuracy:** {bootstrap_results['accuracy']['mean']:.4f} (95% CI: {bootstrap_results['accuracy']['lower_ci']:.4f}-{bootstrap_results['accuracy']['upper_ci']:.4f})
-- **F1 Score:** {bootstrap_results['f1_score']['mean']:.4f} (95% CI: {bootstrap_results['f1_score']['lower_ci']:.4f}-{bootstrap_results['f1_score']['upper_ci']:.4f})
-- **AUC:** {bootstrap_results['auc']['mean']:.4f} (95% CI: {bootstrap_results['auc']['lower_ci']:.4f}-{bootstrap_results['auc']['upper_ci']:.4f})
-
 ### Usage Guidelines
 This model should be used as a decision support tool, not as the sole determinant for contract or draft decisions. Best practices include:
 1. Consider the model's predicted probability alongside traditional scouting
@@ -601,20 +327,14 @@ This model should be used as a decision support tool, not as the sole determinan
 3. Recognize that the model is trained on historical data and may not capture emerging trends
 4. Re-evaluate predictions as more data becomes available for a player
     """
-    
-    # Save documentation to file
-    with open('results/model_documentation.md', 'w') as f:
+    with open('model_documentation.md', 'w') as f:
         f.write(documentation)
-    
-    print("Technical documentation generated and saved to 'results/model_documentation.md'")
+    print("Technical documentation generated and saved to 'model_documentation.md'")
 
-# Final Report Generation
-def generate_final_report(ensemble_metrics, importance_df, model_comparison):
-    """
-    Generate final project report.
-    """
-    print("\nGenerating final report...")
-    
+generate_documentation()
+
+# Generate final report
+def generate_final_report():
     report = f"""
 # NBA Player Career Longevity Prediction: Final Report
 
@@ -637,7 +357,7 @@ The final stacked ensemble model achieved the following performance metrics on t
    - {importance_df.iloc[3]['Feature']} (Importance: {importance_df.iloc[3]['Importance']:.4f})
    - {importance_df.iloc[4]['Feature']} (Importance: {importance_df.iloc[4]['Importance']:.4f})
 
-2. **Model Comparison:** The stacked ensemble approach outperformed individual models, achieving an F1 score improvement of {(ensemble_metrics['f1'] - model_comparison.loc['Logistic Regression', 'F1 Score']):.4f} over the baseline logistic regression model.
+2. **Model Comparison:** The stacked ensemble approach outperformed individual models (see detailed comparison in attached documentation).
 
 3. **Bootstrap Analysis:** Our bootstrap resampling confirms the robustness of the model with tight confidence intervals around key metrics.
 
@@ -655,109 +375,64 @@ The final stacked ensemble model achieved the following performance metrics on t
 
 3. **International Player Analysis:** Create specialized models for international players with different developmental pathways.
     """
-    
-    # Save report to file
-    with open('results/final_report.md', 'w') as f:
+    with open('final_report.md', 'w') as f:
         f.write(report)
-    
-    print("Final report generated and saved to 'results/final_report.md'")
+    print("Final report generated and saved to 'final_report.md'")
 
-# Prediction function for new players
-def create_prediction_function(model, scaler, X_train):
-    """
-    Create and test a function for making predictions on new players.
-    """
-    def predict_career_longevity(player_data):
-        """
-        Make career longevity predictions for new NBA players
-        
-        Parameters:
-        player_data : DataFrame with the same features used in training
-        
-        Returns:
-        DataFrame with predictions and probabilities
-        """
-        # Preprocess the data (assuming player_data has the same structure as training data)
-        # Drop columns not used in prediction
-        id_cols = ['player_id', 'player_name', 'draft_year']
-        features = player_data.drop(id_cols, axis=1, errors='ignore')
-        
-        # Check if features match the expected columns
-        missing_cols = set(X_train.columns) - set(features.columns)
-        if missing_cols:
-            raise ValueError(f"Missing columns in input data: {missing_cols}")
-        
-        # Ensure column order matches training data
-        features = features[X_train.columns]
-        
-        # Scale the features
-        features_scaled = scaler.transform(features)
-        
-        # Make predictions
-        probabilities = model.predict_proba(features_scaled)[:, 1]
-        predictions = model.predict(features_scaled)
-        
-        # Add results to original data
-        results = player_data.copy()
-        results['long_career_probability'] = probabilities
-        results['predicted_long_career'] = predictions
-        results['prediction_confidence'] = np.maximum(probabilities, 1-probabilities)
-        
-        # Add interpretation
-        def interpret_prediction(prob):
-            if prob > 0.9:
-                return "Very High Confidence (>90%) of Long Career"
-            elif prob > 0.75:
-                return "High Confidence (>75%) of Long Career"
-            elif prob > 0.5:
-                return "Moderate Confidence of Long Career"
-            elif prob > 0.25:
-                return "Low Confidence of Long Career (likely short)"
-            else:
-                return "Very Low Confidence (<25%) of Long Career (very likely short)"
-        
-        results['interpretation'] = results['long_career_probability'].apply(interpret_prediction)
-        
-        return results
-    
-    # Save the prediction function and example to a file
-    with open('results/prediction_function.py', 'w') as f:
-        f.write("""
-import pandas as pd
-import numpy as np
-import joblib
+generate_final_report()
 
+# Export prediction function for future use
 def predict_career_longevity(player_data):
-    \"\"\"
-    Make career longevity predictions for new NBA players
+    """
+    Function to predict career longevity for new players
     
     Parameters:
     player_data : DataFrame with the same features used in training
     
     Returns:
     DataFrame with predictions and probabilities
-    \"\"\"
+    """
+    # Preprocess player data
+    features = player_data.drop(['player_id', 'player_name', 'draft_year'], axis=1, errors='ignore')
+    
+    # Scale features
+    features_scaled = scaler.transform(features)
+    
+    # Make predictions
+    probabilities = optimized_ensemble.predict_proba(features_scaled)[:, 1]
+    predictions = optimized_ensemble.predict(features_scaled)
+    
+    # Add results to original data
+    results = player_data.copy()
+    results['long_career_probability'] = probabilities
+    results['predicted_long_career'] = predictions
+    
+    return results
+
+# Export this function so it can be imported later
+with open('prediction_function.py', 'w') as f:
+    f.write('''
+import joblib
+import pandas as pd
+
+def predict_career_longevity(player_data):
+    """
+    Function to predict career longevity for new NBA players
+    
+    Parameters:
+    player_data : DataFrame with the same features used in training
+    
+    Returns:
+    DataFrame with predictions and probabilities
+    """
     # Load the model and scaler
-    model = joblib.load('models/nba_career_longevity_model.pkl')
-    scaler = joblib.load('models/nba_career_longevity_scaler.pkl')
+    model = joblib.load('nba_career_longevity_model.pkl')
+    scaler = joblib.load('nba_career_longevity_scaler.pkl')
     
-    # Get required columns from the model
-    required_columns = pd.read_csv('results/required_columns.csv')['columns'].tolist()
+    # Preprocess player data
+    features = player_data.drop(['player_id', 'player_name', 'draft_year'], axis=1, errors='ignore')
     
-    # Preprocess the data
-    # Drop columns not used in prediction
-    id_cols = ['player_id', 'player_name', 'draft_year']
-    features = player_data.drop(id_cols, axis=1, errors='ignore')
-    
-    # Check if features match the expected columns
-    missing_cols = set(required_columns) - set(features.columns)
-    if missing_cols:
-        raise ValueError(f"Missing columns in input data: {missing_cols}")
-    
-    # Ensure column order matches training data
-    features = features[required_columns]
-    
-    # Scale the features
+    # Scale features
     features_scaled = scaler.transform(features)
     
     # Make predictions
@@ -768,162 +443,11 @@ def predict_career_longevity(player_data):
     results = player_data.copy()
     results['long_career_probability'] = probabilities
     results['predicted_long_career'] = predictions
-    results['prediction_confidence'] = np.maximum(probabilities, 1-probabilities)
-    
-    # Add interpretation
-    def interpret_prediction(prob):
-        if prob > 0.9:
-            return "Very High Confidence (>90%) of Long Career"
-        elif prob > 0.75:
-            return "High Confidence (>75%) of Long Career"
-        elif prob > 0.5:
-            return "Moderate Confidence of Long Career"
-        elif prob > 0.25:
-            return "Low Confidence of Long Career (likely short)"
-        else:
-            return "Very Low Confidence (<25%) of Long Career (very likely short)"
-    
-    results['interpretation'] = results['long_career_probability'].apply(interpret_prediction)
+    results['prediction_confidence'] = probabilities.copy()
+    results.loc[results['predicted_long_career'] == 0, 'prediction_confidence'] = 1 - results['prediction_confidence']
     
     return results
+''')
+print("Prediction function exported to 'prediction_function.py'")
 
-# Example usage
-# new_players = pd.read_csv('new_nba_players.csv')
-# predictions = predict_career_longevity(new_players)
-# predictions[['player_name', 'long_career_probability', 'predicted_long_career', 'interpretation']].head()
-""")
-    
-    # Save required columns for prediction
-    pd.DataFrame({'columns': X_train.columns}).to_csv('results/required_columns.csv', index=False)
-    
-    # Save the scaler
-    joblib.dump(scaler, 'models/nba_career_longevity_scaler.pkl')
-    
-    print("Prediction function generated and saved to 'results/prediction_function.py'")
-    
-    return predict_career_longevity
-
-# Export all statistics to a summary file
-def export_statistics(ensemble_metrics, importance_df, model_comparison, bootstrap_results, best_params):
-    """
-    Export all statistics to summary files.
-    """
-    print("\nExporting statistics...")
-    
-    # Create a summary statistics file
-    summary = {
-        'execution_date': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'ensemble_metrics': ensemble_metrics,
-        'top_features': importance_df.head(10).to_dict('records'),
-        'model_comparison': model_comparison.to_dict(),
-        'bootstrap_results': bootstrap_results,
-        'best_hyperparameters': best_params
-    }
-    
-    # Save to JSON
-    with open('results/project_summary_statistics.json', 'w') as f:
-        json.dump(summary, f, indent=4)
-    
-    # Create a text summary file for quick reference
-    with open('results/summary_report.txt', 'w') as f:
-        f.write("NBA PLAYER CAREER LONGEVITY PREDICTION - SUMMARY REPORT\n")
-        f.write("=" * 60 + "\n\n")
-        
-        f.write("EXECUTION DATE: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + "\n\n")
-        
-        f.write("OPTIMIZED ENSEMBLE MODEL PERFORMANCE\n")
-        f.write("-" * 40 + "\n")
-        f.write(f"Accuracy: {ensemble_metrics['accuracy']:.4f}\n")
-        f.write(f"F1 Score: {ensemble_metrics['f1']:.4f}\n")
-        f.write(f"AUC-ROC: {ensemble_metrics['auc']:.4f}\n")
-        f.write(f"Precision at 75% Recall: {ensemble_metrics['precision_at_75_recall']:.4f}\n\n")
-        
-        f.write("TOP 10 MOST IMPORTANT FEATURES\n")
-        f.write("-" * 40 + "\n")
-        for i, row in importance_df.head(10).iterrows():
-            f.write(f"{i+1}. {row['Feature']}: {row['Importance']:.4f}\n")
-        f.write("\n")
-        
-        f.write("MODEL COMPARISON\n")
-        f.write("-" * 40 + "\n")
-        f.write(model_comparison.to_string() + "\n\n")
-        
-        f.write("BOOTSTRAP RESULTS (95% CONFIDENCE INTERVALS)\n")
-        f.write("-" * 40 + "\n")
-        for metric, values in bootstrap_results.items():
-            f.write(f"{metric.replace('_', ' ').title()}: {values['mean']:.4f} (95% CI: {values['lower_ci']:.4f}-{values['upper_ci']:.4f})\n")
-        
-        f.write("\n\nAll detailed results available in the 'results' directory.\n")
-    
-    print("Statistics exported to 'results/project_summary_statistics.json' and 'results/summary_report.txt'")
-
-# Main function
-def main():
-    """
-    Main function to run the entire project.
-    """
-    print("=" * 80)
-    print("NBA PLAYER CAREER LONGEVITY PREDICTION PROJECT")
-    print("=" * 80)
-    
-    # Set random seed for reproducibility
-    np.random.seed(42)
-    
-    # 1. Load and prepare data
-    X_train, y_train, X_test, y_test, X_train_scaled, X_test_scaled, train_data, test_data, scaler = load_data()
-    
-    # 2. Create baseline models
-    log_reg, baseline_results = create_baseline_models(X_train_scaled, y_train, X_test_scaled, y_test, test_data)
-    
-    # 3. Create initial ensemble model
-    ensemble_model = create_ensemble_model(X_train_scaled, y_train)
-    
-    # 4. Optimize hyperparameters
-    rf_search, gb_search, lr_search, best_params = optimize_hyperparameters(X_train_scaled, y_train)
-    
-    # 5. Create optimized ensemble model
-    optimized_ensemble = create_optimized_ensemble(rf_search, gb_search, lr_search, X_train_scaled, y_train)
-    
-    # 6. Evaluate optimized model
-    ensemble_metrics = evaluate_model(optimized_ensemble, X_test_scaled, y_test, "Optimized Ensemble", plot_figures=True)
-    
-    # 7. Analyze feature importance
-    importance_df, rf_model, shap_explainer = analyze_feature_importance(optimized_ensemble, X_train, X_train_scaled)
-    
-    # 8. Perform bootstrap evaluation
-    bootstrap_results = bootstrap_evaluation(optimized_ensemble, X_test_scaled, y_test, n_iterations=200)
-    
-    # 9. Compare all models
-    model_comparison = compare_all_models(X_train_scaled, y_train, X_test_scaled, y_test, optimized_ensemble)
-    
-    # 10. Create prediction function
-    predict_function = create_prediction_function(optimized_ensemble, scaler, X_train)
-    
-    # 11. Generate documentation
-    generate_documentation(ensemble_metrics, importance_df, best_params, bootstrap_results)
-    
-    # 12. Generate final report
-    generate_final_report(ensemble_metrics, importance_df, model_comparison)
-    
-    # 13. Export all statistics
-    export_statistics(ensemble_metrics, importance_df, model_comparison, bootstrap_results, best_params)
-    
-    print("\n" + "=" * 80)
-    print("PROJECT EXECUTION COMPLETE")
-    print("=" * 80)
-    print("\nAll results, visualizations, and models have been saved to their respective directories.")
-    print("- Models saved to: 'models/'")
-    print("- Visualizations saved to: 'visualizations/'")
-    print("- Results and reports saved to: 'results/'")
-    
-    return {
-        'ensemble_model': optimized_ensemble,
-        'metrics': ensemble_metrics,
-        'importance': importance_df,
-        'bootstrap': bootstrap_results,
-        'comparison': model_comparison
-    }
-
-# Run the entire project
-if __name__ == "__main__":
-    main()
+print("\nAll components of the NBA Career Longevity Project have been successfully generated!")

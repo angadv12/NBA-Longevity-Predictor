@@ -7,20 +7,20 @@ This project developed a machine learning framework to predict NBA career longev
 ## Model Performance
 The final stacked ensemble model achieved the following performance metrics on the 2019-2023 holdout test set:
 
-- **F1 Score:** 0.9952
-- **AUC-ROC:** 0.9995
-- **Accuracy:** 0.9920
-- **Precision at 75% Recall:** 1.0000
+- **F1 Score:** 0.8909
+- **AUC-ROC:** 0.8322
+- **Accuracy:** 0.8261
+- **Precision at 75% Recall:** 0.9268
 
 ## Key Findings
 1. **Most Important Predictors:** The most significant predictors of career longevity are:
-   - G (Importance: 0.2084)
-   - MP (Importance: 0.1468)
-   - TRB_Total (Importance: 0.1384)
-   - WS (Importance: 0.1175)
-   - PTS_Total (Importance: 0.0840)
+   - TRB (Importance: 0.0774)
+   - BPM (Importance: 0.0739)
+   - DRB (Importance: 0.0647)
+   - WS (Importance: 0.0643)
+   - DWS (Importance: 0.0377)
 
-2. **Model Comparison:** The stacked ensemble approach outperformed individual models, achieving an F1 score improvement of 0.0194 over the baseline logistic regression model.
+2. **Model Comparison:** The stacked ensemble approach outperformed individual models, achieving an F1 score improvement of 0.0137 over the baseline logistic regression model.
 
 3. **Bootstrap Analysis:** Our bootstrap resampling confirms the robustness of the model with tight confidence intervals around key metrics.
 

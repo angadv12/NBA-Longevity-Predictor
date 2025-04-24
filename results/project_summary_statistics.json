@@ -1,116 +1,116 @@
 {
-    "execution_date": "2025-04-22 21:38:11",
+    "execution_date": "2025-04-23 21:02:56",
     "ensemble_metrics": {
-        "accuracy": 0.992,
-        "f1": 0.9952153110047847,
-        "auc": 0.9995238095238095,
-        "precision_at_75_recall": 1.0,
+        "accuracy": 0.8260869565217391,
+        "f1": 0.8909090909090909,
+        "auc": 0.8322440087145969,
+        "precision_at_75_recall": 0.926829268292683,
         "confusion_matrix": [
             [
-                20,
-                0
+                8,
+                10
             ],
             [
-                1,
-                104
+                2,
+                49
             ]
         ]
     },
     "top_features": [
         {
-            "Feature": "G",
-            "Importance": 0.2084101965820034
+            "Feature": "TRB",
+            "Importance": 0.07741534774721918
         },
         {
-            "Feature": "MP",
-            "Importance": 0.14677624238568346
+            "Feature": "BPM",
+            "Importance": 0.07385245824641856
         },
         {
-            "Feature": "TRB_Total",
-            "Importance": 0.1383845827705933
+            "Feature": "DRB",
+            "Importance": 0.06465168476134883
         },
         {
             "Feature": "WS",
-            "Importance": 0.11753690079684241
+            "Importance": 0.06430671722930754
         },
         {
-            "Feature": "PTS_Total",
-            "Importance": 0.08399941684731184
+            "Feature": "DWS",
+            "Importance": 0.03768129933859704
         },
         {
-            "Feature": "WS_Per_Game",
-            "Importance": 0.04051082798066564
+            "Feature": "MP",
+            "Importance": 0.03097618539982224
         },
         {
-            "Feature": "AST_Total",
-            "Importance": 0.03838727241514843
+            "Feature": "FTA",
+            "Importance": 0.029952497869852487
         },
         {
-            "Feature": "Durability_Factor",
-            "Importance": 0.036231111185647306
+            "Feature": "PF",
+            "Importance": 0.029771247979357377
         },
         {
             "Feature": "WS/48",
-            "Importance": 0.03515685897068644
+            "Importance": 0.0291379831816878
         },
         {
-            "Feature": "MPG",
-            "Importance": 0.029815887105191688
+            "Feature": "ORB",
+            "Importance": 0.028324830866433986
         }
     ],
     "model_comparison": {
         "Accuracy": {
-            "Logistic Regression": 0.96,
-            "Random Forest": 0.976,
-            "Gradient Boosting": 0.992,
-            "Optimized Ensemble": 0.992
+            "Logistic Regression": 0.7971014492753623,
+            "Random Forest": 0.8115942028985508,
+            "Gradient Boosting": 0.7681159420289855,
+            "Optimized Ensemble": 0.8260869565217391
         },
         "F1 Score": {
-            "Logistic Regression": 0.9758454106280193,
-            "Random Forest": 0.9856459330143541,
-            "Gradient Boosting": 0.9952153110047847,
-            "Optimized Ensemble": 0.9952153110047847
+            "Logistic Regression": 0.8771929824561403,
+            "Random Forest": 0.8828828828828829,
+            "Gradient Boosting": 0.8571428571428571,
+            "Optimized Ensemble": 0.8909090909090909
         },
         "AUC": {
-            "Logistic Regression": 0.981904761904762,
-            "Random Forest": 0.9847619047619048,
-            "Gradient Boosting": 0.9959523809523809,
-            "Optimized Ensemble": 0.9995238095238095
+            "Logistic Regression": 0.8169934640522876,
+            "Random Forest": 0.8028322440087146,
+            "Gradient Boosting": 0.8082788671023964,
+            "Optimized Ensemble": 0.8322440087145969
         }
     },
     "bootstrap_results": {
         "accuracy": {
-            "mean": 0.9909200000000001,
-            "lower_ci": 0.968,
-            "upper_ci": 1.0
+            "mean": 0.8249275362318841,
+            "lower_ci": 0.7391304347826086,
+            "upper_ci": 0.9130434782608695
         },
         "f1_score": {
-            "mean": 0.994530261554252,
-            "lower_ci": 0.9809523809523809,
-            "upper_ci": 1.0
+            "mean": 0.8893520715209193,
+            "lower_ci": 0.8301546829848717,
+            "upper_ci": 0.9423611111111111
         },
         "auc": {
-            "mean": 0.9995230301948262,
-            "lower_ci": 0.9967983006535946,
-            "upper_ci": 1.0
+            "mean": 0.82987276302086,
+            "lower_ci": 0.7273674440950384,
+            "upper_ci": 0.9371960006600966
         }
     },
     "best_hyperparameters": {
         "random_forest": {
-            "max_depth": 16,
-            "min_samples_leaf": 1,
-            "min_samples_split": 5,
-            "n_estimators": 661
+            "max_depth": 14,
+            "min_samples_leaf": 8,
+            "min_samples_split": 16,
+            "n_estimators": 134
         },
         "gradient_boosting": {
-            "learning_rate": 0.13958350559263474,
+            "learning_rate": 0.05958008171890075,
             "max_depth": 2,
-            "min_samples_split": 11,
-            "n_estimators": 237,
-            "subsample": 0.7465447373174767
+            "min_samples_split": 8,
+            "n_estimators": 58,
+            "subsample": 0.908897907718663
         },
         "logistic_regression": {
-            "C": 4.754571532049581
+            "C": 1.8737005942368123
         }
     }
 }
