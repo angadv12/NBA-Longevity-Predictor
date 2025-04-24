@@ -1,9 +1,9 @@
 {
     "random_forest": {
-        "max_depth": 14,
-        "min_samples_leaf": 8,
+        "max_depth": 4,
+        "min_samples_leaf": 4,
         "min_samples_split": 16,
-        "n_estimators": 134
+        "n_estimators": 554
     },
     "gradient_boosting": {
         "learning_rate": 0.05958008171890075,
@@ -13,6 +13,6 @@
         "subsample": 0.908897907718663
     },
     "logistic_regression": {
-        "C": 1.8737005942368123
+        "C": 0.7810932022121826
     }
 }

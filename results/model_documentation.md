@@ -6,29 +6,29 @@
 This machine learning model predicts whether an NBA player will have a long career (≥5 seasons) or a short career (<5 seasons) based on early-career statistics and other indicators. The model uses a stacked ensemble approach combining Random Forest, Gradient Boosting, and Logistic Regression with L1 regularization.
 
 ### Performance Metrics
-- **F1 Score:** 0.8909
-- **AUC-ROC:** 0.8322
+- **F1 Score:** 0.8990
+- **AUC-ROC:** 0.8320
 - **Accuracy:** 0.8261
-- **Precision at 75% Recall:** 0.9268
+- **Precision at 75% Recall:** 0.8947
 
 ### Key Predictors
 The top 5 most important features for predicting career longevity are:
 Feature  Importance
-    TRB    0.077415
-    BPM    0.073852
-    DRB    0.064652
-     WS    0.064307
-    DWS    0.037681
+    DRB    0.081275
+    TRB    0.075708
+    BPM    0.070101
+     WS    0.066250
+    DWS    0.046130
 
 ### Model Configuration
 The optimized ensemble model uses the following configuration:
 
 #### Random Forest:
 {
-    "max_depth": 14,
-    "min_samples_leaf": 8,
+    "max_depth": 4,
+    "min_samples_leaf": 4,
     "min_samples_split": 16,
-    "n_estimators": 134
+    "n_estimators": 554
 }
 
 #### Gradient Boosting:
@@ -42,14 +42,14 @@ The optimized ensemble model uses the following configuration:
 
 #### Logistic Regression:
 {
-    "C": 1.8737005942368123
+    "C": 0.7810932022121826
 }
 
 ### Uncertainty Analysis
 Bootstrap resampling (200 iterations) yielded the following uncertainty estimates:
-- **Accuracy:** 0.8249 (95% CI: 0.7391-0.9130)
-- **F1 Score:** 0.8894 (95% CI: 0.8302-0.9424)
-- **AUC:** 0.8299 (95% CI: 0.7274-0.9372)
+- **Accuracy:** 0.8419 (95% CI: 0.7652-0.9043)
+- **F1 Score:** 0.9057 (95% CI: 0.8555-0.9447)
+- **AUC:** 0.8510 (95% CI: 0.7614-0.9295)
 
 ### Usage Guidelines
 This model should be used as a decision support tool, not as the sole determinant for contract or draft decisions. Best practices include:

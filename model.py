@@ -42,8 +42,8 @@ def load_data():
     X = df.drop(['Player', 'long_career', 'Yrs'], axis=1, errors='ignore')
     y = df['long_career']
 
-    train_mask = (df['Draft_Year'] <= 2012)
-    test_mask = (df['Draft_Year'] >= 2013)
+    train_mask = (df['Draft_Year'] <= 2010)
+    test_mask = (df['Draft_Year'] >= 2011)
 
     X_train, y_train = X[train_mask], y[train_mask]
     X_test, y_test = X[test_mask], y[test_mask]
@@ -402,27 +402,39 @@ def bootstrap_evaluation(model, X, y, n_iterations=200, save_figures=True):
         accuracies.append(accuracy_score(y_sample, y_pred))
         f1_scores.append(f1_score(y_sample, y_pred))
         aucs.append(roc_auc_score(y_sample, y_prob))
+
     results = {}
-    # calculate CIs
+    # calculate confidence intervals
     for name, vals in [('accuracy', accuracies), ('f1_score', f1_scores), ('auc', aucs)]:
         lower, upper = np.percentile(vals, [2.5, 97.5])
         mean = np.mean(vals)
         results[name] = {'mean': mean, 'lower_ci': lower, 'upper_ci': upper}
         print(f"{name}: {mean:.4f} (95% CI: {lower:.4f}-{upper:.4f})")
+
     # visualize distributions with annotations
     if save_figures:
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        # Add overall title
+        fig.suptitle('Bootstrap Distributions', fontsize=16)
         for ax, data, title in zip(axes, [accuracies, f1_scores, aucs], ['Accuracy', 'F1 Score', 'AUC']):
             counts, bins, patches = ax.hist(data, bins=30, alpha=0.7)
             ax.axvline(np.mean(data), color='red')
             ax.set_title(f'{title} Distribution')
-            # annotate bars
+            # annotate bars with smaller font size to avoid overlap
             for count, patch in zip(counts, patches):
-                ax.annotate(f'{count:.0f}', (patch.get_x() + patch.get_width()/2, count),
-                            textcoords='offset points', xytext=(0,3), ha='center')
+                ax.annotate(f'{count:.0f}',
+                            (patch.get_x() + patch.get_width() / 2, count),
+                            textcoords='offset points',
+                            xytext=(0, 3),
+                            ha='center',
+                            fontsize=6)
         plt.tight_layout()
+        # Adjust layout to accommodate the suptitle
+        plt.subplots_adjust(top=0.85)
         plt.savefig('visualizations/bootstrap_distributions.png', dpi=300, bbox_inches='tight')
         plt.close()
+
+    # save bootstrap results
     with open('results/bootstrap_results.json', 'w') as f:
         json.dump(results, f, indent=4)
     return results
@@ -430,19 +442,35 @@ def bootstrap_evaluation(model, X, y, n_iterations=200, save_figures=True):
 # Model Comparison
 def compare_all_models(X_train_scaled, y_train, X_test_scaled, y_test, optimized_ensemble, save_figures=True):
     print("\nComparing all models...")
-    base_rf = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
-    base_gb = GradientBoostingClassifier(random_state=42)
-    base_lr = LogisticRegression(penalty='l1', solver='liblinear', C=0.1, random_state=42)
+    base_rf = RandomForestClassifier(
+        n_estimators=500, 
+        max_depth=15,
+        random_state=42
+    )
+    
+    base_lr = LogisticRegression(
+        penalty='l1', 
+        C=0.01,
+        solver='liblinear',
+        random_state=42
+    )
+    
+    base_gb = GradientBoostingClassifier(
+        learning_rate=0.1,
+        max_depth=3,
+        n_estimators=100,
+        random_state=42
+    )
     models = {
         'Logistic Regression': base_lr,
         'Random Forest': base_rf,
         'Gradient Boosting': base_gb,
-        'Optimized Ensemble': optimized_ensemble
+        'Ensemble': optimized_ensemble
     }
     results = {}
     for name, model in models.items():
         print(f"Evaluating {name}...")
-        if name != 'Optimized Ensemble': model.fit(X_train_scaled, y_train)
+        if name != 'Ensemble': model.fit(X_train_scaled, y_train)
         y_pred = model.predict(X_test_scaled)
         y_prob = model.predict_proba(X_test_scaled)[:, 1]
         results[name] = {
@@ -821,13 +849,13 @@ def main():
     optimized_ensemble = create_optimized_ensemble(rf_search, gb_search, lr_search, X_train_scaled, y_train)
     
     # 6. Evaluate optimized model
-    ensemble_metrics = evaluate_model(optimized_ensemble, X_test_scaled, y_test, "Optimized Ensemble", plot_figures=True)
+    ensemble_metrics = evaluate_model(ensemble_model, X_test_scaled, y_test, "Ensemble", plot_figures=True)
     
     # 7. Analyze feature importance
     importance_df, rf_model, shap_explainer = analyze_feature_importance(optimized_ensemble, X_train, X_train_scaled)
     
     # 8. Perform bootstrap evaluation
-    bootstrap_results = bootstrap_evaluation(optimized_ensemble, X_test_scaled, y_test, n_iterations=200)
+    bootstrap_results = bootstrap_evaluation(optimized_ensemble, X_test_scaled, y_test, n_iterations=1000)
     
     # 9. Compare all models
     model_comparison = compare_all_models(X_train_scaled, y_train, X_test_scaled, y_test, optimized_ensemble)
