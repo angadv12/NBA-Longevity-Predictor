@@ -24,12 +24,8 @@ import json
 import datetime
 
 # Create a results directory if it doesn't exist
-if not os.path.exists('results'):
-    os.makedirs('results')
-if not os.path.exists('models'):
-    os.makedirs('models')
-if not os.path.exists('visualizations'):
-    os.makedirs('visualizations')
+for d in ['results', 'models', 'visualizations']:
+    os.makedirs(d, exist_ok=True)
 
 # Data Loading
 def load_data():
@@ -278,46 +274,38 @@ def create_optimized_ensemble(rf_search, gb_search, lr_search, X_train_scaled, y
 
 # Model Evaluation
 def evaluate_model(model, X, y, model_name="Model", plot_figures=True, save_figures=True):
-    """
-    Evaluate model performance and generate metrics.
-    """
     print(f"\nEvaluating {model_name}...")
     y_pred = model.predict(X)
     y_prob = model.predict_proba(X)[:, 1]
-    
-    # Calculate metrics
+
     accuracy = accuracy_score(y, y_pred)
     f1 = f1_score(y, y_pred)
     auc = roc_auc_score(y, y_prob)
-    
-    # Calculate precision at 75% recall
+
     precision, recall, thresholds = precision_recall_curve(y, y_prob)
     target_recall = 0.75
-    recall_diff = np.abs(recall - target_recall)
-    closest_idx = np.argmin(recall_diff)
+    closest_idx = np.argmin(np.abs(recall - target_recall))
     precision_at_75_recall = precision[closest_idx]
-    
+
     print(f"{model_name} Performance:")
     print(f"Accuracy: {accuracy:.4f}")
     print(f"F1 Score: {f1:.4f}")
     print(f"AUC-ROC: {auc:.4f}")
     print(f"Precision at 75% Recall: {precision_at_75_recall:.4f}")
-    
-    # Plot confusion matrix
+
     if plot_figures:
+        # Confusion matrix (no bar annotations)
         cm = confusion_matrix(y, y_pred)
         plt.figure(figsize=(8, 6))
         sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
         plt.title(f'{model_name} Confusion Matrix')
         plt.xlabel('Predicted Label')
         plt.ylabel('True Label')
-        plt.xticks([0.5, 1.5], ['<5 Seasons', '≥5 Seasons'])
-        plt.yticks([0.5, 1.5], ['<5 Seasons', '≥5 Seasons'])
         if save_figures:
             plt.savefig(f'visualizations/{model_name.replace(" ", "_")}_confusion_matrix.png', dpi=300, bbox_inches='tight')
         plt.close()
-        
-        # Plot ROC curve
+
+        # ROC curve
         fpr, tpr, _ = roc_curve(y, y_prob)
         plt.figure(figsize=(8, 6))
         plt.plot(fpr, tpr, label=f'ROC Curve (AUC = {auc:.3f})')
@@ -326,56 +314,36 @@ def evaluate_model(model, X, y, model_name="Model", plot_figures=True, save_figu
         plt.ylabel('True Positive Rate')
         plt.title(f'{model_name} ROC Curve')
         plt.legend()
-        plt.grid(alpha=0.3)
         if save_figures:
             plt.savefig(f'visualizations/{model_name.replace(" ", "_")}_roc_curve.png', dpi=300, bbox_inches='tight')
         plt.close()
-    
-    # Save metrics to file
-    metrics = {
-        'accuracy': accuracy,
-        'f1': f1,
-        'auc': auc,
-        'precision_at_75_recall': precision_at_75_recall,
-        'confusion_matrix': cm.tolist() if 'cm' in locals() else None
-    }
-    
+
+    metrics = {'accuracy': accuracy, 'f1': f1, 'auc': auc, 'precision_at_75_recall': precision_at_75_recall}
+    if 'cm' in locals(): metrics['confusion_matrix'] = cm.tolist()
     return metrics
 
 # Feature Importance Analysis
 def analyze_feature_importance(ensemble_model, X_train, X_train_scaled, save_figures=True):
-    """
-    Extract and analyze feature importance from the models.
-    """
     print("\nAnalyzing feature importance...")
-    # Get the Random Forest component from the ensemble
     rf_model = ensemble_model.named_estimators_['rf']
-    
-    # Get feature importances
     importances = rf_model.feature_importances_
-    
-    # Create DataFrame
-    importance_df = pd.DataFrame({
-        'Feature': X_train.columns,
-        'Importance': importances
-    })
-    
-    # Sort by importance
-    importance_df = importance_df.sort_values('Importance', ascending=False).reset_index(drop=True)
-    
-    # Save feature importance to CSV
+    importance_df = pd.DataFrame({'Feature': X_train.columns, 'Importance': importances})
+    importance_df.sort_values('Importance', ascending=False, inplace=True)
+    importance_df.reset_index(drop=True, inplace=True)
     importance_df.to_csv('results/feature_importance.csv', index=False)
-    
-    # Plot top 15 features
+
+    # Plot top 15 features with annotation
     plt.figure(figsize=(12, 8))
-    sns.barplot(x='Importance', y='Feature', data=importance_df.head(15))
+    ax = sns.barplot(x='Importance', y='Feature', data=importance_df.head(15))
+    # annotate bars
+    for container in ax.containers:
+        ax.bar_label(container, fmt='%.4f', padding=3)
     plt.title('Top 15 Most Important Features for NBA Career Longevity')
     plt.tight_layout()
     if save_figures:
         plt.savefig('visualizations/feature_importance_top15.png', dpi=300, bbox_inches='tight')
     plt.close()
-    
-    # Print top 10 most important features
+
     print("Top 10 Most Important Features:")
     print(importance_df.head(10))
     
@@ -423,141 +391,100 @@ def analyze_feature_importance(ensemble_model, X_train, X_train_scaled, save_fig
 
 # Bootstrap Resampling for Uncertainty Quantification
 def bootstrap_evaluation(model, X, y, n_iterations=200, save_figures=True):
-    """
-    Estimate uncertainty in model performance using bootstrap resampling.
-    """
     print("\nPerforming bootstrap evaluation...")
-    accuracies = []
-    f1_scores = []
-    aucs = []
-    
+    accuracies, f1_scores, aucs = [], [], []
     np.random.seed(42)
-    
     for i in range(n_iterations):
-        if i % 20 == 0:
-            print(f"Bootstrap iteration {i}/{n_iterations}")
-        
-        # Sample with replacement
         indices = np.random.choice(len(X), size=len(X), replace=True)
-        X_sample = X[indices]
-        y_sample = y.iloc[indices] if isinstance(y, pd.Series) else y[indices]
-        
-        # Predict
+        X_sample, y_sample = X[indices], y.iloc[indices]
         y_pred = model.predict(X_sample)
         y_prob = model.predict_proba(X_sample)[:, 1]
-        
-        # Calculate metrics
         accuracies.append(accuracy_score(y_sample, y_pred))
         f1_scores.append(f1_score(y_sample, y_pred))
         aucs.append(roc_auc_score(y_sample, y_prob))
-    
-    # Calculate confidence intervals (95%)
-    bootstrap_results = {}
-    for metric_name, values in [("Accuracy", accuracies), ("F1 Score", f1_scores), ("AUC", aucs)]:
-        lower = np.percentile(values, 2.5)
-        upper = np.percentile(values, 97.5)
-        mean = np.mean(values)
-        print(f"{metric_name}: {mean:.4f} (95% CI: {lower:.4f}-{upper:.4f})")
-        bootstrap_results[metric_name.lower().replace(" ", "_")] = {
-            "mean": mean, 
-            "lower_ci": lower, 
-            "upper_ci": upper
-        }
-    
-    # Save bootstrap results to file
-    with open('results/bootstrap_results.json', 'w') as f:
-        json.dump(bootstrap_results, f, indent=4)
-    
-    # Visualize distributions
+    results = {}
+    # calculate CIs
+    for name, vals in [('accuracy', accuracies), ('f1_score', f1_scores), ('auc', aucs)]:
+        lower, upper = np.percentile(vals, [2.5, 97.5])
+        mean = np.mean(vals)
+        results[name] = {'mean': mean, 'lower_ci': lower, 'upper_ci': upper}
+        print(f"{name}: {mean:.4f} (95% CI: {lower:.4f}-{upper:.4f})")
+    # visualize distributions with annotations
     if save_figures:
-        plt.figure(figsize=(15, 5))
-        
-        plt.subplot(1, 3, 1)
-        plt.hist(accuracies, bins=30, alpha=0.7)
-        plt.axvline(np.mean(accuracies), color='red')
-        plt.title('Accuracy Distribution')
-        
-        plt.subplot(1, 3, 2)
-        plt.hist(f1_scores, bins=30, alpha=0.7)
-        plt.axvline(np.mean(f1_scores), color='red')
-        plt.title('F1 Score Distribution')
-        
-        plt.subplot(1, 3, 3)
-        plt.hist(aucs, bins=30, alpha=0.7)
-        plt.axvline(np.mean(aucs), color='red')
-        plt.title('AUC Distribution')
-        
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        for ax, data, title in zip(axes, [accuracies, f1_scores, aucs], ['Accuracy', 'F1 Score', 'AUC']):
+            counts, bins, patches = ax.hist(data, bins=30, alpha=0.7)
+            ax.axvline(np.mean(data), color='red')
+            ax.set_title(f'{title} Distribution')
+            # annotate bars
+            for count, patch in zip(counts, patches):
+                ax.annotate(f'{count:.0f}', (patch.get_x() + patch.get_width()/2, count),
+                            textcoords='offset points', xytext=(0,3), ha='center')
         plt.tight_layout()
         plt.savefig('visualizations/bootstrap_distributions.png', dpi=300, bbox_inches='tight')
         plt.close()
-    
-    return bootstrap_results
+    with open('results/bootstrap_results.json', 'w') as f:
+        json.dump(results, f, indent=4)
+    return results
 
 # Model Comparison
 def compare_all_models(X_train_scaled, y_train, X_test_scaled, y_test, optimized_ensemble, save_figures=True):
-    """
-    Compare performance of all models.
-    """
     print("\nComparing all models...")
-    # Initialize models
     base_rf = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
     base_gb = GradientBoostingClassifier(random_state=42)
     base_lr = LogisticRegression(penalty='l1', solver='liblinear', C=0.1, random_state=42)
-    
-    # Train models
     models = {
         'Logistic Regression': base_lr,
         'Random Forest': base_rf,
         'Gradient Boosting': base_gb,
         'Optimized Ensemble': optimized_ensemble
     }
-    
     results = {}
-    
-    # Train and evaluate each model (or just evaluate if already trained)
     for name, model in models.items():
         print(f"Evaluating {name}...")
-        if name == 'Optimized Ensemble' and hasattr(model, 'predict'):
-            # Already trained
-            pass
-        else:
-            print(f"Training {name}...")
-            model.fit(X_train_scaled, y_train)
-        
-        # Predict
+        if name != 'Optimized Ensemble': model.fit(X_train_scaled, y_train)
         y_pred = model.predict(X_test_scaled)
         y_prob = model.predict_proba(X_test_scaled)[:, 1]
-        
-        # Calculate metrics
         results[name] = {
             'Accuracy': accuracy_score(y_test, y_pred),
             'F1 Score': f1_score(y_test, y_pred),
             'AUC': roc_auc_score(y_test, y_prob)
         }
-    
-    # Create DataFrame for comparison
     comparison_df = pd.DataFrame(results).T
-    
-    # Save comparison to CSV
     comparison_df.to_csv('results/model_comparison.csv')
-    
-    # Plot comparison
+
     if save_figures:
-        plt.figure(figsize=(12, 6))
-        comparison_df.plot(kind='bar', figsize=(12, 6))
+        ax = comparison_df.plot(kind='bar', figsize=(12, 6))
         plt.title('Model Performance Comparison')
         plt.ylabel('Score')
         plt.ylim(0, 1)
         plt.xticks(rotation=45)
         plt.grid(axis='y', alpha=0.3)
-        plt.legend(title='Metric')
+        # annotate bars
+        for container in ax.containers:
+            ax.bar_label(container, fmt='%.3f', padding=3)
         plt.tight_layout()
         plt.savefig('visualizations/model_comparison.png', dpi=300, bbox_inches='tight')
         plt.close()
-    
+
+        # Combined ROC curves
+        plt.figure(figsize=(8, 6))
+        for name, model in models.items():
+            y_prob = model.predict_proba(X_test_scaled)[:, 1]
+            fpr, tpr, _ = roc_curve(y_test, y_prob)
+            auc_val = roc_auc_score(y_test, y_prob)
+            plt.plot(fpr, tpr, label=f'{name} (AUC={auc_val:.3f})')
+        plt.plot([0, 1], [0, 1], 'k--', label='Random')
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('ROC Curves for All Models')
+        plt.legend(loc='lower right')
+        plt.tight_layout()
+        plt.savefig('visualizations/all_models_roc_curve.png', dpi=300, bbox_inches='tight')
+        plt.close()
+
     print("\nModel Comparison:")
     print(comparison_df)
-    
     return comparison_df
 
 # Technical Documentation

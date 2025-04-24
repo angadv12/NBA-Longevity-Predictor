@@ -1,7 +1,7 @@
 NBA PLAYER CAREER LONGEVITY PREDICTION - SUMMARY REPORT
 ============================================================
 
-EXECUTION DATE: 2025-04-23 21:02:56
+EXECUTION DATE: 2025-04-23 21:24:08
 
 OPTIMIZED ENSEMBLE MODEL PERFORMANCE
 ----------------------------------------
