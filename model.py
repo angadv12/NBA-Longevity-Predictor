@@ -169,109 +169,6 @@ def create_ensemble_model(X_train_scaled, y_train):
     
     return stacked_model
 
-# Hyperparameter Optimization
-def optimize_hyperparameters(X_train_scaled, y_train):
-    """
-    Perform hyperparameter optimization for each model component.
-    """
-    print("\nOptimizing hyperparameters...")
-    # Random Forest hyperparameter space
-    rf_param_dist = {
-        'n_estimators': randint(100, 1000),
-        'max_depth': randint(3, 20),
-        'min_samples_split': randint(2, 20),
-        'min_samples_leaf': randint(1, 10)
-    }
-    
-    # Gradient Boosting hyperparameter space
-    gb_param_dist = {
-        'learning_rate': uniform(0.01, 0.3),
-        'n_estimators': randint(50, 500),
-        'max_depth': randint(2, 10),
-        'min_samples_split': randint(2, 20),
-        'subsample': uniform(0.6, 0.4)
-    }
-    
-    # Logistic Regression hyperparameter space
-    lr_param_dist = {
-        'C': uniform(0.001, 5.0)
-    }
-    
-    # Create models for optimization
-    rf = RandomForestClassifier(random_state=42)
-    gb = GradientBoostingClassifier(random_state=42)
-    lr = LogisticRegression(penalty='l1', solver='liblinear', random_state=42)
-    
-    # Use RandomizedSearchCV as a proxy for Bayesian optimization
-    # Reducing iterations for faster execution
-    rf_search = RandomizedSearchCV(
-        rf, rf_param_dist, n_iter=20, cv=5, 
-        scoring='f1', random_state=42, n_jobs=-1
-    )
-    
-    gb_search = RandomizedSearchCV(
-        gb, gb_param_dist, n_iter=20, cv=5, 
-        scoring='f1', random_state=42, n_jobs=-1
-    )
-    
-    lr_search = RandomizedSearchCV(
-        lr, lr_param_dist, n_iter=10, cv=5, 
-        scoring='f1', random_state=42, n_jobs=-1
-    )
-    
-    # Fit search algorithms
-    print("Optimizing Random Forest...")
-    rf_search.fit(X_train_scaled, y_train)
-    
-    print("Optimizing Gradient Boosting...")
-    gb_search.fit(X_train_scaled, y_train)
-    
-    print("Optimizing Logistic Regression...")
-    lr_search.fit(X_train_scaled, y_train)
-    
-    # Print best parameters
-    print(f"Best RF parameters: {rf_search.best_params_}")
-    print(f"Best GB parameters: {gb_search.best_params_}")
-    print(f"Best LR parameters: {lr_search.best_params_}")
-    
-    # Save best parameters
-    best_params = {
-        'random_forest': rf_search.best_params_,
-        'gradient_boosting': gb_search.best_params_,
-        'logistic_regression': lr_search.best_params_
-    }
-    
-    with open('results/best_hyperparameters.json', 'w') as f:
-        json.dump(best_params, f, indent=4)
-    
-    return rf_search, gb_search, lr_search, best_params
-
-# Create optimized ensemble model
-def create_optimized_ensemble(rf_search, gb_search, lr_search, X_train_scaled, y_train):
-    """
-    Create an optimized ensemble model with the best hyperparameters.
-    """
-    print("\nCreating optimized ensemble model...")
-    optimized_ensemble = StackingClassifier(
-        estimators=[
-            ('rf', rf_search.best_estimator_),
-            ('lr', lr_search.best_estimator_),
-            ('gb', gb_search.best_estimator_)
-        ],
-        final_estimator=LogisticRegression(random_state=42),
-        cv=5
-    )
-    
-    # Train optimized ensemble
-    print("Training optimized ensemble model...")
-    optimized_ensemble.fit(X_train_scaled, y_train)
-    print("Optimized ensemble model training complete!")
-    
-    # Save the model
-    joblib.dump(optimized_ensemble, 'models/nba_career_longevity_model.pkl')
-    
-    return optimized_ensemble
-
 # Model Evaluation
 def evaluate_model(model, X, y, model_name="Model", plot_figures=True, save_figures=True):
     print(f"\nEvaluating {model_name}...")
@@ -440,7 +337,7 @@ def bootstrap_evaluation(model, X, y, n_iterations=200, save_figures=True):
     return results
 
 # Model Comparison
-def compare_all_models(X_train_scaled, y_train, X_test_scaled, y_test, optimized_ensemble, save_figures=True):
+def compare_all_models(X_train_scaled, y_train, X_test_scaled, y_test, ensemble, save_figures=True):
     print("\nComparing all models...")
     base_rf = RandomForestClassifier(
         n_estimators=500, 
@@ -465,7 +362,7 @@ def compare_all_models(X_train_scaled, y_train, X_test_scaled, y_test, optimized
         'Logistic Regression': base_lr,
         'Random Forest': base_rf,
         'Gradient Boosting': base_gb,
-        'Ensemble': optimized_ensemble
+        'Ensemble': ensemble
     }
     results = {}
     for name, model in models.items():
@@ -515,116 +412,6 @@ def compare_all_models(X_train_scaled, y_train, X_test_scaled, y_test, optimized
     print(comparison_df)
     return comparison_df
 
-# Technical Documentation
-def generate_documentation(ensemble_metrics, importance_df, best_params, bootstrap_results):
-    """
-    Generate technical documentation for the model.
-    """
-    print("\nGenerating technical documentation...")
-    
-    # Create documentation string
-    documentation = f"""
-# NBA Player Career Longevity Prediction Model
-## Technical Documentation
-
-### Model Overview
-This machine learning model predicts whether an NBA player will have a long career (≥5 seasons) or a short career (<5 seasons) based on early-career statistics and other indicators. The model uses a stacked ensemble approach combining Random Forest, Gradient Boosting, and Logistic Regression with L1 regularization.
-
-### Performance Metrics
-- **F1 Score:** {ensemble_metrics['f1']:.4f}
-- **AUC-ROC:** {ensemble_metrics['auc']:.4f}
-- **Accuracy:** {ensemble_metrics['accuracy']:.4f}
-- **Precision at 75% Recall:** {ensemble_metrics['precision_at_75_recall']:.4f}
-
-### Key Predictors
-The top 5 most important features for predicting career longevity are:
-{importance_df.head(5)[['Feature', 'Importance']].to_string(index=False)}
-
-### Model Configuration
-The optimized ensemble model uses the following configuration:
-
-#### Random Forest:
-{json.dumps(best_params['random_forest'], indent=4)}
-
-#### Gradient Boosting:
-{json.dumps(best_params['gradient_boosting'], indent=4)}
-
-#### Logistic Regression:
-{json.dumps(best_params['logistic_regression'], indent=4)}
-
-### Uncertainty Analysis
-Bootstrap resampling (200 iterations) yielded the following uncertainty estimates:
-- **Accuracy:** {bootstrap_results['accuracy']['mean']:.4f} (95% CI: {bootstrap_results['accuracy']['lower_ci']:.4f}-{bootstrap_results['accuracy']['upper_ci']:.4f})
-- **F1 Score:** {bootstrap_results['f1_score']['mean']:.4f} (95% CI: {bootstrap_results['f1_score']['lower_ci']:.4f}-{bootstrap_results['f1_score']['upper_ci']:.4f})
-- **AUC:** {bootstrap_results['auc']['mean']:.4f} (95% CI: {bootstrap_results['auc']['lower_ci']:.4f}-{bootstrap_results['auc']['upper_ci']:.4f})
-
-### Usage Guidelines
-This model should be used as a decision support tool, not as the sole determinant for contract or draft decisions. Best practices include:
-1. Consider the model's predicted probability alongside traditional scouting
-2. Pay attention to feature importance to understand what's driving a specific prediction
-3. Recognize that the model is trained on historical data and may not capture emerging trends
-4. Re-evaluate predictions as more data becomes available for a player
-    """
-    
-    # Save documentation to file
-    with open('results/model_documentation.md', 'w') as f:
-        f.write(documentation)
-    
-    print("Technical documentation generated and saved to 'results/model_documentation.md'")
-
-# Final Report Generation
-def generate_final_report(ensemble_metrics, importance_df, model_comparison):
-    """
-    Generate final project report.
-    """
-    print("\nGenerating final report...")
-    
-    report = f"""
-# NBA Player Career Longevity Prediction: Final Report
-
-## Project Summary
-This project developed a machine learning framework to predict NBA career longevity (≥5 seasons vs. <5 seasons) using early-career indicators. The model aims to address critical team needs: optimizing draft strategies, informing rookie-scale extension decisions, and mitigating financial risks in long-term contracts.
-
-## Model Performance
-The final stacked ensemble model achieved the following performance metrics on the 2019-2023 holdout test set:
-
-- **F1 Score:** {ensemble_metrics['f1']:.4f}
-- **AUC-ROC:** {ensemble_metrics['auc']:.4f}
-- **Accuracy:** {ensemble_metrics['accuracy']:.4f}
-- **Precision at 75% Recall:** {ensemble_metrics['precision_at_75_recall']:.4f}
-
-## Key Findings
-1. **Most Important Predictors:** The most significant predictors of career longevity are:
-   - {importance_df.iloc[0]['Feature']} (Importance: {importance_df.iloc[0]['Importance']:.4f})
-   - {importance_df.iloc[1]['Feature']} (Importance: {importance_df.iloc[1]['Importance']:.4f})
-   - {importance_df.iloc[2]['Feature']} (Importance: {importance_df.iloc[2]['Importance']:.4f})
-   - {importance_df.iloc[3]['Feature']} (Importance: {importance_df.iloc[3]['Importance']:.4f})
-   - {importance_df.iloc[4]['Feature']} (Importance: {importance_df.iloc[4]['Importance']:.4f})
-
-2. **Model Comparison:** The stacked ensemble approach outperformed individual models, achieving an F1 score improvement of {(ensemble_metrics['f1'] - model_comparison.loc['Logistic Regression', 'F1 Score']):.4f} over the baseline logistic regression model.
-
-3. **Bootstrap Analysis:** Our bootstrap resampling confirms the robustness of the model with tight confidence intervals around key metrics.
-
-## Practical Applications
-1. **Draft Decision Support:** The model provides an objective assessment of a prospect's likelihood of having a long career, complementing traditional scouting methods.
-
-2. **Contract Valuation:** Teams can use prediction probabilities to help quantify risk in long-term contract negotiations.
-
-3. **Player Development Focus:** Feature importance highlights which skills and attributes have the strongest relationship with career longevity, potentially guiding development programs.
-
-## Future Work
-1. **Position-Specific Models:** Develop separate models for guards, forwards, and centers to capture position-specific career trajectory factors.
-
-2. **Injury Prediction Integration:** Incorporate injury prediction models to provide a more comprehensive risk assessment.
-
-3. **International Player Analysis:** Create specialized models for international players with different developmental pathways.
-    """
-    
-    # Save report to file
-    with open('results/final_report.md', 'w') as f:
-        f.write(report)
-    
-    print("Final report generated and saved to 'results/final_report.md'")
 
 # Prediction function for new players
 def create_prediction_function(model, scaler, X_train):
@@ -768,7 +555,7 @@ def predict_career_longevity(player_data):
     return predict_career_longevity
 
 # Export all statistics to a summary file
-def export_statistics(ensemble_metrics, importance_df, model_comparison, bootstrap_results, best_params):
+def export_statistics(ensemble_metrics, importance_df, model_comparison, bootstrap_results):
     """
     Export all statistics to summary files.
     """
@@ -781,7 +568,6 @@ def export_statistics(ensemble_metrics, importance_df, model_comparison, bootstr
         'top_features': importance_df.head(10).to_dict('records'),
         'model_comparison': model_comparison.to_dict(),
         'bootstrap_results': bootstrap_results,
-        'best_hyperparameters': best_params
     }
     
     # Save to JSON
@@ -795,7 +581,7 @@ def export_statistics(ensemble_metrics, importance_df, model_comparison, bootstr
         
         f.write("EXECUTION DATE: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + "\n\n")
         
-        f.write("OPTIMIZED ENSEMBLE MODEL PERFORMANCE\n")
+        f.write("ENSEMBLE MODEL PERFORMANCE\n")
         f.write("-" * 40 + "\n")
         f.write(f"Accuracy: {ensemble_metrics['accuracy']:.4f}\n")
         f.write(f"F1 Score: {ensemble_metrics['f1']:.4f}\n")
@@ -842,35 +628,23 @@ def main():
     # 3. Create initial ensemble model
     ensemble_model = create_ensemble_model(X_train_scaled, y_train)
     
-    # 4. Optimize hyperparameters
-    rf_search, gb_search, lr_search, best_params = optimize_hyperparameters(X_train_scaled, y_train)
-    
-    # 5. Create optimized ensemble model
-    optimized_ensemble = create_optimized_ensemble(rf_search, gb_search, lr_search, X_train_scaled, y_train)
-    
-    # 6. Evaluate optimized model
+    # 6. Evaluate model
     ensemble_metrics = evaluate_model(ensemble_model, X_test_scaled, y_test, "Ensemble", plot_figures=True)
     
     # 7. Analyze feature importance
-    importance_df, rf_model, shap_explainer = analyze_feature_importance(optimized_ensemble, X_train, X_train_scaled)
+    importance_df, rf_model, shap_explainer = analyze_feature_importance(ensemble_model, X_train, X_train_scaled)
     
     # 8. Perform bootstrap evaluation
-    bootstrap_results = bootstrap_evaluation(optimized_ensemble, X_test_scaled, y_test, n_iterations=1000)
+    bootstrap_results = bootstrap_evaluation(ensemble_model, X_test_scaled, y_test, n_iterations=1000)
     
     # 9. Compare all models
-    model_comparison = compare_all_models(X_train_scaled, y_train, X_test_scaled, y_test, optimized_ensemble)
+    model_comparison = compare_all_models(X_train_scaled, y_train, X_test_scaled, y_test, ensemble_model)
     
     # 10. Create prediction function
-    predict_function = create_prediction_function(optimized_ensemble, scaler, X_train)
-    
-    # 11. Generate documentation
-    generate_documentation(ensemble_metrics, importance_df, best_params, bootstrap_results)
-    
-    # 12. Generate final report
-    generate_final_report(ensemble_metrics, importance_df, model_comparison)
+    predict_function = create_prediction_function(ensemble_model, scaler, X_train)
     
     # 13. Export all statistics
-    export_statistics(ensemble_metrics, importance_df, model_comparison, bootstrap_results, best_params)
+    export_statistics(ensemble_metrics, importance_df, model_comparison, bootstrap_results)
     
     print("\n" + "=" * 80)
     print("PROJECT EXECUTION COMPLETE")
@@ -881,7 +655,7 @@ def main():
     print("- Results and reports saved to: 'results/'")
     
     return {
-        'ensemble_model': optimized_ensemble,
+        'ensemble_model': ensemble_model,
         'metrics': ensemble_metrics,
         'importance': importance_df,
         'bootstrap': bootstrap_results,
